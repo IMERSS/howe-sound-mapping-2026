@@ -1,0 +1,26 @@
+{{- $logoPath := .Site.Params.navbar.logo.path | default "images/logo.svg" -}}
+{{- $logoLink := .Site.Params.navbar.logo.link | default .Site.Home.RelPermalink -}}
+{{- $logoWidth := .Site.Params.navbar.logo.width | default "20" -}}
+{{- $logoHeight := .Site.Params.navbar.logo.height | default "20" -}}
+{{- $logoDarkPath := .Site.Params.navbar.logo.dark | default $logoPath -}}
+
+<div class="nav-container hx-sticky hx-top-0 hx-w-full hx-bg-transparent print:hx-hidden">
+
+  <div class="imerss-navbar-background">
+
+  </div>
+  <div class="imerss-navbar">
+      {{- if (.Site.Params.navbar.displayTitle | default true) }}
+      <a class="hx-flex hx-items-center hover:hx-opacity-75" href="{{ $logoLink }}">
+          <span class="imerss-navbar-title hx-mx-2 hx-font-extrabold hx-inline hx-select-none" title="{{ .Site.Title }}">{{- .Site.Title -}}</span>
+      </a>
+      {{- end }}
+      {{- if (.Site.Params.navbar.displayLogo | default true) }}
+      <a class="hx-flex hx-items-center hover:hx-opacity-75" href="{{ $logoLink }}">
+          <img src="{{ $logoPath | relURL }}" alt="{{ .Site.Title }}" height="{{ $logoHeight }}" width="{{ $logoWidth }}" />
+      </a>
+      {{- end }}
+    </a>
+  </div>
+
+</div>
