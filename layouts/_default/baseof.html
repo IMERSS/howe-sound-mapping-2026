@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="{{ .Site.Language.Lang }}">
   {{- partial "head.html" . -}}
+  {{- partial "imerss-aux.html" . -}}
   <body dir="{{ .Site.Language.LanguageDirection | default `ltr` }}">
     {{- partial "navbar.html" . -}}
     <div class="imerss-main">

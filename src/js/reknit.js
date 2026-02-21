@@ -8,35 +8,151 @@ const fs = require("fs-extra"),
     linkedom = require("linkedom"),
     fluid = require("infusion");
 
-const maxwell = fluid.registerNamespace("maxwell");
+const reknitr = fluid.registerNamespace("reknitr");
+
+fluid.setLogging(true);
 
 require("./utils.js");
 
 /** Parse an HTML document supplied as a symbolic reference into a linkedom DOM document
- * @param {String} path - A possibly module-qualified path reference, e.g. "%maxwell/src/html/template.html"
+ * @param {String} path - A possibly module-qualified path reference, e.g. "%reknitr/src/html/template.html"
  * @return {Document} The document parsed into a DOM representation
  */
-maxwell.parseDocument = function (path) {
+reknitr.parseDocument = function (path) {
     const resolved = fluid.module.resolvePath(path);
     const text = fs.readFileSync(resolved, "utf8");
     return linkedom.parseHTML(text).document;
 };
 
-maxwell.writeFile = function (filename, data) {
+reknitr.writeFile = function (filename, data) {
     fs.writeFileSync(filename, data, "utf8");
     const stats = fs.statSync(filename);
     console.log("Written " + stats.size + " bytes to " + filename);
 };
 
-// Hide the divs which host the original leaflet maps and return their respective section headers
-maxwell.hideLeafletWidgets = function (container) {
-    const widgets = [...container.querySelectorAll(".html-widget.leaflet")];
-    widgets.forEach(function (widget) {
-        widget.removeAttribute("style");
+fluid.delete = function (root, path) {
+    const segs = fluid.model.pathToSegments(path);
+    // TODO: Refactor away this silly interface too
+    const pen = fluid.model.traverseSimple(root, segs, 0, null, 1);
+    delete pen[fluid.peek(segs)];
+};
+
+reknitr.censorMapbox = function (data) {
+    // TODO: Implement immutable applier
+    const copy = fluid.copy(data);
+    fluid.delete(copy, "x.layout.mapbox.style.sources");
+    fluid.delete(copy, "x.layout.mapbox.style.layers");
+    return copy;
+};
+
+reknitr.sortLayers = function (layers) {
+    layers.sort((a, b) =>
+        (+a.id.endsWith("-highlight") - (+b.id.endsWith("-highlight")))
+    );
+};
+
+
+/**
+ * @typedef {Object.<String, *>} RootMap
+ * @typedef {Object.<String, LayerIdSet>} LayersByPaneId
+ */
+
+/**
+ * @typedef {Object.<String, Number>} LayerIdSet
+ */
+
+/**
+ * @typedef {Object.<String, Object>} MapWidgets
+ */
+
+/**
+ * @typedef {Object.<String, Number>} FillPatterns
+ */
+
+/**
+ * @typedef {Object} MapboxWidgetsParseResult
+ * @property {RootMap} rootMap - The first Mapbox widget's data or an empty object if none are found.
+ * @property {LayersByPaneId} layersByPaneId - A mapping of pane IDs to their associated layer IDs (with value 1).
+ * @property {MapWidgets} mapWidgets - A mapping of pane IDs to their censored Mapbox data.
+ * @property {FillPatterns} fillPatterns - A collection of fill pattern names as keys with value 1.
+ */
+
+reknitr.makeMapboxParseResults = function () {
+    return {
+        rootMap: null,
+        mapWidgets: {},
+        sources: {},
+        layerHash: {},
+        layersByPaneId:{},
+        fillPatterns: {}
+    };
+};
+
+/**
+ * Parses Mapbox widgets from a given container element and processes their data.
+ * This function identifies all Plotly widgets with Mapbox data, extracts and processes
+ * their Mapbox-related information, and removes the original widgets from the DOM.
+ * It also deduplicates sources, organizes layers, and prepares data for further use.
+ *
+ * @param {MapboxWidgetsParseResult} parseResults - Current parse results
+ * @param {Element} container - The DOM container element to search for Mapbox widgets.
+ */
+reknitr.parseMapboxWidgets = function (parseResults, container) {
+    const widgets = [...container.querySelectorAll(".html-widget.plotly")];
+    let rootMap;
+    const {mapWidgets, sources, layerHash, layersByPaneId, fillPatterns} = parseResults;
+
+    widgets.forEach(widget => {
+        const widgetId = widget.id;
+        const dataNode = widgetId ? container.querySelector("[data-for=\"" + widgetId + "\"]") : null;
+        //        console.log("Got data node ", dataNode);
+        const data = dataNode ? JSON.parse(dataNode.innerHTML) : null;
+        //        console.log("Got data ", data);
+        const mapbox = fluid.get(data, "x.layout.mapbox");
+        if (mapbox) {
+            const paneId = mapbox.style.id;
+
+            // Deduplicate all sources
+            Object.entries(mapbox.style.sources).forEach(([key, value]) => {
+                sources[key] = value;
+            });
+            mapbox.style.layers.forEach((layer) => {
+                const key = layer.id;
+                layerHash[key] = layer;
+                fluid.set(layersByPaneId, [paneId, key], 1);
+                const fillPattern = layer["mx-fill-pattern"];
+                if (fillPattern) {
+                    fillPatterns[fillPattern] = 1;
+                    layer.paint["fill-pattern"] = fillPattern;
+                }
+            });
+            if (!rootMap) {
+                rootMap = data;
+            }
+            mapWidgets[paneId] = reknitr.censorMapbox(data);
+
+            const parent = widget.parentNode;
+            // Remove original widget and data nodes from document and replace by marker span connecting DOM node to pane name
+            widget.remove();
+            dataNode.remove();
+            const span = parent.ownerDocument.createElement("span");
+            span.setAttribute("class", `mxcw-mapPane mxcw-paneName-${paneId}`);
+            parent.appendChild(span);
+        }
     });
-    const sections = widgets.map(widget => widget.closest(".section.level2"));
-    console.log("Found " + sections.length + " sections holding Leaflet widgets");
-    return sections;
+
+    fluid.log("Parsed " + Object.keys(mapWidgets).length + " mapbox widgets from " + widgets.length + " plotly widgets");
+};
+
+reknitr.composeRootMap = function (parseResults) {
+    const {mapWidgets, sources, layerHash, layersByPaneId, fillPatterns} = parseResults;
+    const rootMap = {}; // originally took from first map encountered
+    const layers = Object.values(layerHash);
+    reknitr.sortLayers(layers);
+    fluid.set(rootMap, "x.layout.mapbox.style.sources", sources);
+    fluid.set(rootMap, "x.layout.mapbox.style.layers", layers);
+
+    return {rootMap, layersByPaneId, mapWidgets, fillPatterns};
 };
 
 /** Compute figures to move to data pane, by searching for selector `.data-pane`, and if any parent is found
@@ -44,7 +160,7 @@ maxwell.hideLeafletWidgets = function (container) {
  * @param {Element} container - The DOM container to be searched for elements to move
  * @return {Element[]} - An array of DOM elements to be moved to the data pane
  */
-maxwell.figuresToMove = function (container) {
+reknitr.figuresToMove = function (container) {
     const toMoves = [...container.querySelectorAll(".data-pane")];
     const widened = toMoves.map(function (toMove) {
         const figure = toMove.closest(".figure");
@@ -59,7 +175,7 @@ maxwell.figuresToMove = function (container) {
  * @param {Element} container - The container node with class `.main-container` found in the original knitted markup
  * @return {Element[]} An array of data panes corresponding to the input section nodes
  */
-maxwell.movePlotlyWidgets = function (template, sections, container) {
+reknitr.movePlotlyWidgets = function (template, sections, container) {
     const data = template.querySelector(".mxcw-data");
     if (!data) {
         throw "Error in template structure - data pane not found with class mxcw-data";
@@ -73,7 +189,7 @@ maxwell.movePlotlyWidgets = function (template, sections, container) {
 
     const plotlys = [...container.querySelectorAll(".html-widget.plotly")];
     console.log("Found " + plotlys.length + " Plotly widgets in " + sections.length + " heading sections");
-    const toDatas = maxwell.figuresToMove(container);
+    const toDatas = reknitr.figuresToMove(container);
     console.log("Found " + toDatas.length + " elements to move to data pane");
     const toMoves = [...plotlys, ...toDatas];
     toMoves.forEach(function (toMove, i) {
@@ -90,19 +206,46 @@ maxwell.movePlotlyWidgets = function (template, sections, container) {
     return dataDivs;
 };
 
-maxwell.transferNodeContent = function (container, template, selector) {
+reknitr.makeCreateElement = function (dokkument) {
+    return (tagName, props) => {
+        const element = dokkument.createElement(tagName);
+        Object.entries(props).forEach(([key, value]) => element.setAttribute(key, value));
+        return element;
+    };
+};
+
+// Move all children other than the heading itself into nested "sectionInner" node to enable 2-column layout
+reknitr.encloseSections = function (container, vizColumn) {
+    const h = reknitr.makeCreateElement(container.ownerDocument);
+    const sections = [...container.querySelectorAll(".section.level2")];
+    sections.forEach(function (section) {
+        const children = [...section.childNodes].filter(node => node.tagName !== "H2");
+        const inner = h("div", {"class": "mxcw-sectionInner"});
+        section.appendChild(inner);
+        // Move to inner column - perhaps optional behaviour
+        const innerColumn = h("div", {"class": "mxcw-sectionColumn"});
+        inner.appendChild(innerColumn);
+        children.forEach(child => innerColumn.appendChild(child));
+        if (vizColumn === "right") {
+            const vizColumn = h("div", {"class": "mxcw-sectionColumn mxcw-vizColumn"});
+            inner.appendChild(vizColumn);
+        }
+    });
+};
+
+reknitr.transferNodeContent = function (container, template, selector) {
     const containerNode = container.querySelector(selector);
     const templateNode = template.querySelector(selector);
     templateNode.innerHTML = containerNode.innerHTML;
     containerNode.remove();
 };
 
-maxwell.integratePaneHandler = function (paneHandler, key) {
-    const plotDataFile = "%maxwell/viz_data/" + key + "-plotData.json";
+reknitr.integratePaneHandler = function (paneHandler, key) {
+    const plotDataFile = "%self/viz_data/" + key + "-plotData.json";
     let plotData;
     const resolved = fluid.module.resolvePath(plotDataFile);
     if (fs.existsSync(resolved)) {
-        plotData = maxwell.loadJSON5File(resolved);
+        plotData = fluid.loadJSON5File(resolved);
     } else {
         console.log("plotData file for pane " + key + " not found");
     }
@@ -110,39 +253,51 @@ maxwell.integratePaneHandler = function (paneHandler, key) {
     return {...paneHandler, ...toMerge};
 };
 
-maxwell.reknitFile = async function (infile, outfile, options, config) {
-    const document = maxwell.parseDocument(fluid.module.resolvePath(infile));
-    const container = document.querySelector(".main-container");
-    const sections = maxwell.hideLeafletWidgets(container);
-    const template = maxwell.parseDocument(fluid.module.resolvePath(options.template));
-    maxwell.movePlotlyWidgets(template, sections, container);
+reknitr.reknitFiles = async function (infiles, outfile, options) {
 
-    maxwell.transferNodeContent(document, template, "h1");
-    maxwell.transferNodeContent(document, template, "title");
-
-    const transforms = (config.transforms || []).concat(options.transforms || []);
-
-    await maxwell.asyncForEach(transforms || [], async (rec) => {
-        const file = require(fluid.module.resolvePath(rec.file));
-        const transform = file[rec.func];
-        await transform(document, container, template, {infile, outfile, options}, config);
-    });
+    const template = reknitr.parseDocument(fluid.module.resolvePath(options.template));
     const target = template.querySelector(".mxcw-content");
-    target.appendChild(container);
+    // reknitr.movePlotlyWidgets(template, sections, container);
+
+    const parseResults = reknitr.makeMapboxParseResults();
+    const resolvedFiles = glob.sync(fluid.module.resolvePath(infiles));
+
+    resolvedFiles.forEach(infile => {
+        const document = reknitr.parseDocument(infile);
+        const container = document.querySelector(".main-container");
+        // TODO: Maybe do transforms here
+
+        reknitr.encloseSections(container, options.vizColumn);
+        reknitr.parseMapboxWidgets(parseResults, container);
+
+        target.appendChild(container);
+    });
+
+    const mapboxData = reknitr.composeRootMap(parseResults);
+
+    fluid.writeJSONSync("mapboxData.json", mapboxData);
+    const mapboxDataVar = "reknitr.mapboxData = " + JSON.stringify(mapboxData) + ";\n";
+
     const paneHandlers = options.paneHandlers;
     if (paneHandlers) {
         const integratedHandlers = fluid.transform(paneHandlers, function (paneHandler, key) {
             // TODO: Allow prefix to be contributed representing entire page, e.g. "Mollusca-"
-            return maxwell.integratePaneHandler(paneHandler, key);
+            return reknitr.integratePaneHandler(paneHandler, key);
         });
-        const paneMapText = "maxwell.scrollyPaneHandlers = " + JSON.stringify(integratedHandlers) + ";\n";
+        const rawPaneHandlers = "reknitr.rawPaneHandlers = " + JSON.stringify(integratedHandlers) + ";\n";
+        const storyPageOptions = options.storyPageOptions || {};
+        if (options.components) {
+            const unflattened = reknitr.unflattenOptions(options.components);
+            storyPageOptions.components = unflattened;
+        }
+        // const storyPageLinkage = reknitr.makeRootLinkage("reknitr.storyPage", storyPageOptions);
         const scriptNode = template.createElement("script");
-        scriptNode.innerHTML = paneMapText;
+        scriptNode.innerHTML = mapboxDataVar + rawPaneHandlers;
         const head = template.querySelector("head");
         head.appendChild(scriptNode);
     }
     const outMarkup = "<!DOCTYPE html>" + template.documentElement.outerHTML;
-    maxwell.writeFile(fluid.module.resolvePath(outfile), outMarkup);
+    reknitr.writeFile(fluid.module.resolvePath(outfile), outMarkup);
 };
 
 // TODO: copy up synchronous copyGlob
@@ -165,7 +320,7 @@ const copyGlob = function (sourcePattern, targetDir) {
 const copyDep = function (source, target, replaceSource, replaceTarget) {
     const targetPath = fluid.module.resolvePath(target);
     const sourceModule = fluid.module.refToModuleName(source);
-    if (sourceModule && sourceModule !== "maxwell") {
+    if (sourceModule && sourceModule !== "self") {
         require(sourceModule);
     }
     const sourcePath = fluid.module.resolvePath(source);
@@ -202,8 +357,8 @@ const clearNonMedia = function () {
 */
 
 const reknit = async function () {
-    const config = maxwell.loadJSON5File("%maxwell/config.json5");
-    await maxwell.asyncForEach(config.reknitJobs, async (rec) => maxwell.reknitFile(rec.infile, rec.outfile, rec.options, config));
+    const config = fluid.loadJSON5File("%self/config.json5");
+    await fluid.asyncForEach(config.reknitJobs, async (rec) => reknitr.reknitFiles(rec.infiles, rec.outfile, rec.options, config));
 
     config.copyJobs.forEach(function (dep) {
         copyDep(dep.source, dep.target, dep.replaceSource, dep.replaceTarget);

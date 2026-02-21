@@ -168,3 +168,36 @@ wg <- function (...) {
   # Output the result using writeLines
   writeLines(line)
 }
+
+#' Execute a JavaScript file using Node.js
+#'
+#' Looks for the Node.js executable in the directory specified by the
+#' environment variable R_NODE_PATH. If not found, assumes "node" is
+#' available on the system PATH.
+#'
+#' @param js_file String. Path to the JavaScript file to execute.
+#' @param args Character vector. Additional arguments to pass to the script (optional).
+#' @param ... Further arguments passed to system2().
+#' @return Integer exit status of the node process.
+run_js <- function(js_file, args = character(), ...) {
+  node_dir <- Sys.getenv("R_NODE_PATH", unset = "")
+
+  # If R_NODE_PATH is set, construct full path to node
+  if (nzchar(node_dir)) {
+    node_path <- file.path(node_dir, "node")
+  } else {
+    node_path <- "node" # assume system path
+  }
+
+  if (!file.exists(js_file)) {
+    stop("JavaScript file not found: ", js_file)
+  }
+
+  status <- system2(node_path, args = c(js_file, args), ...)
+  if (status == 127) {
+    stop("Unable to complete build - node.js is not installed. Please install from https://nodejs.org/en/download")
+  } else if (status != 0) {
+    stop(sprintf("Build failed with exit status %d.", status))
+  }
+  return(status)
+}

@@ -1,43 +1,43 @@
 {
     reknitJobs: [{
-        infile: "%maxwell/docs/R-Markdown-AHSBR_Vascular_Plants_Story_Map_2025.html",
-        outfile: "%maxwell/docs/R-Markdown-AHSBR_Vascular_Plants_Story_Map_2025-Reknitted.html",
+        infiles: "%self/content/story/*.html",
+        outfile: "%self/layouts/story/single.html",
         options: {
-            template: "%maxwell/src/html/template.html",
+            template: "%self/src/html/template.html",
             paneHandlers: {
                 Vascular: {
-                    type: "maxwell.scrollyPaneHandler",
-                    gradeNames: ["maxwell.withRegionPaneInfo", "maxwell.scrollyVizBinder.withLegend", "maxwell.scrollyVizBinder"],
-                    regionBinderGrades: ["maxwell.withLabelledRegionName"],
+                    type: "reknitr.scrollyPaneHandler",
+                    gradeNames: ["reknitr.withRegionPaneInfo", "reknitr.scrollyVizBinder.withLegend", "reknitr.scrollyVizBinder"],
+                    regionBinderGrades: ["reknitr.withLabelledRegionName"],
                     vizFile: "%resourceBase/data/Howe-Sound-Scrolly-Life-Vascular-2025.json.lz4",
                     phyloMap: "%resourceBase/json/howePhyloMap.json",
                     downloadTemplate: "data/tabular/AHSBR_%regionName_vascular_plants.csv"
                 },
                 History: {
-                    type: "maxwell.scrollyPaneHandler",
+                    type: "reknitr.scrollyPaneHandler",
                     widgets: {
                         speciesPlot: {
-                            type: "maxwell.choroplethSlider",
-                            gradeNames: ["maxwell.withSliderAnimation", "maxwell.withResizableWidth"]
+                            type: "reknitr.choroplethSlider",
+                            gradeNames: ["reknitr.withSliderAnimation", "reknitr.withResizableWidth"]
                         }
                     }
                 },
                 Status: {
-                    type: "maxwell.scrollyPaneHandler",
-                    gradeNames: ["maxwell.withPaneInfo", "maxwell.scrollyVizBinder.withLegend", "maxwell.scrollyVizBinder"],
-                    paneInfoGrades: ["maxwell.statusCellPaneInfo"],
+                    type: "reknitr.scrollyPaneHandler",
+                    gradeNames: ["reknitr.withPaneInfo", "reknitr.scrollyVizBinder.withLegend", "reknitr.scrollyVizBinder"],
+                    paneInfoGrades: ["reknitr.statusCellPaneInfo"],
                     vizFile: "%resourceBase/data/Howe-Sound-Scrolly-Life-Status-2025.json.lz4",
                     phyloMap: "%resourceBase/json/howePhyloMap.json",
                     regionMarkup: "Selected reporting status: <span class=\"fl-imerss-region-key\">%region</span>",
                     widgets: {
                         reportingStatus: {
-                            type: "maxwell.regionSelectionBar",
-                            gradeNames: "maxwell.regionSelectionBar.withHoist"
+                            type: "reknitr.regionSelectionBar",
+                            gradeNames: "reknitr.regionSelectionBar.withHoist"
                         }
                     }
                 },
                 TopContributions: {
-                    type: "maxwell.iNatComponentsPaneHandler",
+                    type: "reknitr.iNatComponentsPaneHandler",
                     iNatOptions: {
                         taxon: {
                             id: 211194,
@@ -58,12 +58,12 @@
                     }
                 },
                 Protected: {
-                    type: "maxwell.scrollyPaneHandler",
-                    gradeNames: "maxwell.withPaneInfo",
+                    type: "reknitr.scrollyPaneHandler",
+                    gradeNames: "reknitr.withPaneInfo",
                     widgets: {
                         protectedAreas: {
-                            type: "maxwell.widgetHandler",
-                            gradeNames: "maxwell.withResizableWidth"
+                            type: "reknitr.widgetHandler",
+                            gradeNames: "reknitr.withResizableWidth"
                         }
                     }
                 }
@@ -72,79 +72,58 @@
     }],
     copyJobs: [{
         source: "%infusion/dist/infusion-framework.js",
-        target: "%maxwell/docs/js/infusion-framework.js",
+        target: "%self/docs/js/infusion-framework.js",
         replaceSource: "sourceMappingURL=infusion-framework.js.map",
         replaceTarget: "sourceMappingURL=../../node_modules/infusion/dist/infusion-framework.js.map"
     }, { // TODO: Extend module-relative addressing to 3rd-party modules
-        source: "%maxwell/node_modules/@imerss/inat-components/dist/standalone.min.js",
-        target: "%maxwell/docs/js/inat-components-standalone.min.js"
-    }, {
-        source: "%maxwell/src/css/*.css",
-        target: "%maxwell/docs/css"
-    }, {
-        source: "%maxwell/src/js/client/plotly-2.1.1.js",
-        target: "%maxwell/docs/js/plotly-2.1.1.js"
-    }, {
-        source: "%maxwell/src/js/client/htmlwidgets.js",
-        target: "%maxwell/docs/js/htmlwidgets.js"
-    }, {
-        source: "%maxwell/src/js/client/htmlwidgets-plotly.js",
-        target: "%maxwell/docs/js/htmlwidgets-plotly.js"
-    }, {
-        source: "%maxwell/src/js/client/reknit-client.js",
-        target: "%maxwell/docs/js/reknit-client.js"
-    }, {
-        source: "%maxwell/src/js/client/imerss-viz-reknit.js",
-        target: "%maxwell/docs/js/imerss-viz-reknit.js"
-    }, {
-        source: "%maxwell/src/js/client/paneHandlers.js",
-        target: "%maxwell/docs/js/paneHandlers.js"
+        source: "%self/node_modules/@imerss/inat-components/dist/standalone.min.js",
+        target: "%self/docs/js/inat-components-standalone.min.js"
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-viz-all.js",
-        target: "%maxwell/docs/js/imerss-viz-all.js"
+        target: "%self/docs/js/imerss-viz-all.js"
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-viz-all.js.map",
-        target: "%maxwell/docs/js/imerss-viz-all.js.map",
+        target: "%self/docs/js/imerss-viz-all.js.map",
         replaceSource: "\"sourceRoot\":\"../..\"",
         replaceTarget: "\"sourceRoot\":\"../../../bagatelle/\""
     }, {
         source: "%imerss-bioinfo/src/client/img/Arrow-up.svg",
-        target: "%maxwell/docs/img/Arrow-up.svg"
+        target: "%self/docs/img/Arrow-up.svg"
     }, {
         source: "%imerss-bioinfo/src/client/img/Arrow-down.svg",
-        target: "%maxwell/docs/img/Arrow-down.svg"
+        target: "%self/docs/img/Arrow-down.svg"
     }, {
         source: "%imerss-bioinfo/src/client/img/up-arrow.svg",
-        target: "%maxwell/docs/img/up-arrow.svg"
+        target: "%self/docs/img/up-arrow.svg"
     }, {
         source: "%imerss-bioinfo/src/client/img/external-link.svg",
-        target: "%maxwell/docs/img/external-link.svg"
+        target: "%self/docs/img/external-link.svg"
     },  {
-        source: "%maxwell/img/download.svg",
-        target: "%maxwell/docs/img/download.svg"
+        source: "%self/img/download.svg",
+        target: "%self/docs/img/download.svg"
     }, {
-        source: "%maxwell/img/12993632-large.jpeg",
-        target: "%maxwell/docs/img/12993632-large.jpeg"
+        source: "%self/img/12993632-large.jpeg",
+        target: "%self/docs/img/12993632-large.jpeg"
     }, {
         source: "%imerss-bioinfo/docs/css/imerss-viz-all.css",
-        target: "%maxwell/docs/css/imerss-viz-all.css"
+        target: "%self/docs/css/imerss-viz-all.css"
     }, {
-        source: "%maxwell/src/html/imerss-viz-scrolly.html",
-        target: "%maxwell/docs/html/imerss-viz-scrolly.html"
+        source: "%self/src/html/imerss-viz-scrolly.html",
+        target: "%self/docs/html/imerss-viz-scrolly.html"
     }, {
-        source: "%maxwell/src/html/pane-info.html",
-        target: "%maxwell/docs/html/pane-info.html"
+        source: "%self/src/html/pane-info.html",
+        target: "%self/docs/html/pane-info.html"
     }, {
-        source: "%maxwell/viz_data/howePhyloMap.json",
-        target: "%maxwell/docs/json/howePhyloMap.json"
+        source: "%self/viz_data/howePhyloMap.json",
+        target: "%self/docs/json/howePhyloMap.json"
     }, {
-        source: "%maxwell/viz_data/Howe-Sound-Scrolly-Life-Vascular-2025.json.lz4",
-        target: "%maxwell/docs/data/Howe-Sound-Scrolly-Life-Vascular-2025.json.lz4"
+        source: "%self/viz_data/Howe-Sound-Scrolly-Life-Vascular-2025.json.lz4",
+        target: "%self/docs/data/Howe-Sound-Scrolly-Life-Vascular-2025.json.lz4"
     }, {
-        source: "%maxwell/viz_data/Howe-Sound-Scrolly-Life-Status-2025.json.lz4",
-        target: "%maxwell/docs/data/Howe-Sound-Scrolly-Life-Status-2025.json.lz4"
+        source: "%self/viz_data/Howe-Sound-Scrolly-Life-Status-2025.json.lz4",
+        target: "%self/docs/data/Howe-Sound-Scrolly-Life-Status-2025.json.lz4"
     }, {
-        source: "%maxwell/outputs",
-        target: "%maxwell/docs/data/tabular"
+        source: "%self/outputs",
+        target: "%self/docs/data/tabular"
     }]
 }

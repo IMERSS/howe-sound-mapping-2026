@@ -6,18 +6,16 @@ const JSON5 = require("json5"),
     fs = require("fs"),
     fluid = require("infusion");
 
-const maxwell = fluid.registerNamespace("maxwell");
-
 require("../../index.js");
 
 // Taken from https://codeburst.io/javascript-async-await-with-foreach-b6ba62bbf404
-maxwell.asyncForEach = async function (array, callback) {
+fluid.asyncForEach = async function (array, callback) {
     for (let index = 0; index < array.length; index++) {
         await callback(array[index], index, array);
     }
 };
 
-maxwell.loadJSON5File = function (path) {
+fluid.loadJSON5File = function (path) {
     const resolved = fluid.module.resolvePath(path);
     try {
         const text = fs.readFileSync(resolved, "utf8");
@@ -26,4 +24,11 @@ maxwell.loadJSON5File = function (path) {
         e.message = "Error reading JSON5 file " + resolved + "\n" + e.message;
         throw e;
     }
+};
+
+fluid.writeJSONSync = function (inFilename, doc) {
+    const filename = fluid.module.resolvePath(inFilename);
+    const formatted = JSON.stringify(doc, null, 4) + "\n";
+    fs.writeFileSync(filename, formatted);
+    fluid.log("Written " + formatted.length + " bytes to " + filename);
 };

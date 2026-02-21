@@ -73,21 +73,6 @@ menu:
       params:
         icon: github
 
-  sidebar:
-    - identifier: more
-      name: More
-      params:
-        type: separator
-      weight: 1
-    - identifier: about
-      name: "About"
-      pageRef: "/about"
-      weight: 2
-    - identifier: hugoDocs
-      name: "Hugo Docs ↗"
-      url: "https://gohugo.io/documentation/"
-      weight: 3
-
 params:
   description: Átl’ḵa7tsem/Howe Sound Biosphere Vegetation Analysis
 

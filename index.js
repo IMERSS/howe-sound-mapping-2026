@@ -3,6 +3,6 @@
 
 const fluid = require("infusion");
 
-fluid.module.register("maxwell", __dirname, require);
+fluid.module.register("self", __dirname, require);
 
 // global.__basedir = __dirname;
