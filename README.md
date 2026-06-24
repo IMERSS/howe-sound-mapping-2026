@@ -7,14 +7,14 @@ based on [R Markdown](https://rmarkdown.rstudio.com/).
 You can browse the published output of this project in these documents:
 
 * [Sample Raw Knitted Output from R Markdown](https://imerss.github.io/howe-sound-mapping-2026/story/Protected.html)
-* [Raw Output Reknitted into Storymapping Interface](https://imerss.github.io/howe-sound-mapping-2026/story/#)
+* [Raw Output Reknitted into Storymapping Interface](https://imerss.github.io/howe-sound-mapping-2026/story/#pane:Protected)
 
 The project's publishing pipeline is based on the [bioReportR](https://IMERSS/bioreportr) publishing system, which
 is based on R and R Markdown, using free tools such as git, R and R studio, and published and hosted for free using
 [GitHub Pages](https://pages.github.com/). BioReportR is based on the [blogdown](https://pkg.yihui.org/blogdown/)
 R package for publishing web sites using the popular [hugo](https://gohugo.io/) framework.
 
-These files were distilled from work done for the
+This system grew out of work done in 2023 for the
 [Maxwell Creek Watershed Project](https://transitionsaltspring.com/maxwell-creek-watershed-project/) which is being
 undertaken by [Transition Salt Spring](https://transitionsaltspring.com/).
 
