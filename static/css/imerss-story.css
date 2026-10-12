@@ -119,6 +119,23 @@ nav a {
     margin-left: 16px;
 }
 
+/* Shared navigation banner - a project site shows a link back to the index site above its title */
+
+.imerss-navbar .imerss-navbar-titles {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.imerss-navbar .imerss-navbar-index span {
+    color: #FDF2CE;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1rem;
+    margin-left: 24px;
+}
+
 .imerss-subnav {
     color: #dff1f4;
     position: relative;

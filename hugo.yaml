@@ -74,6 +74,11 @@ menu:
         icon: github
 
 params:
+  # The IMERSS index site, linked from the top left of the navigation banner
+  indexSite:
+    title: Biodiversity Change in the Salish Sea
+    url: "https://imerss.github.io/salish-sea-biodiversity/"
+
   description: Átl’ḵa7tsem/Howe Sound Biosphere Vegetation Analysis
 
   # Displays bizarrely on hextra once we change background colour
