@@ -28,22 +28,23 @@ round_geom <- function (geom, digits) {
   }
 }
 
+# Accepts either a geometry list (sfc, as passed from feature_to_geojson in mapbox_map_common.R) or a single
+# geometry (sfg). Note that lapply over an sfg would decompose it into its ring matrices.
 round_and_simplify_geom <- function (geom, digits = 2) {
-  dTolerance = 10^(-digits) / 2
+  if (inherits(geom, "sfg")) {
+    return(round_geom(geom, digits = digits))
+  }
   rounded_geoms <- lapply(geom, round_geom, digits = digits)
-  rounded_geoms_sf <- st_sfc(rounded_geoms, crs = st_crs(geom))
-
   # TODO: If we really want to simplify, should really use https://github.com/ateucher/rmapshaper but
   # this will work better in GeoJSON so let's do it later
-  # simple  <- rounded_geoms_sf %>% st_simplify(preserveTopology = TRUE, dTolerance = dTolerance)
+  # simple  <- rounded_geoms_sf %>% st_simplify(preserveTopology = TRUE, dTolerance = 10^(-digits) / 2)
   # https://gis.stackexchange.com/questions/329110/removing-empty-polygon-from-sf-object-in-r
   # %>% dplyr::filter(!st_is_empty(.))
+  st_sfc(rounded_geoms, crs = st_crs(geom))
 }
 
 round_and_simplify_sf <- function (sf_data, digits) {
-  rounded_geoms <- lapply(st_geometry(sf_data), round_and_simplify_geom, digits = digits)
-  st_geometry(sf_data) <- rounded_geoms
-
+  st_geometry(sf_data) <- round_and_simplify_geom(st_geometry(sf_data), digits = digits)
   sf_data
 }
 
@@ -70,11 +71,15 @@ timedFread <- function (toread) {
   as.data.frame(frame)
 }
 
+# Write CSV quoting fields only where required (containing separator, quote or newline) as specified in
+# https://www.ietf.org/rfc/rfc4180.txt - NA is written as an empty field
+write_csv_correctly <- function (x, towrite) {
+  data.table::fwrite(x, towrite, quote = "auto", qmethod = "double", eol = "\r\n")
+}
+
 timedWrite <- function (x, towrite) {
   start <- Sys.time()
-  # Approach for selective quoting taken from https://stackoverflow.com/a/25810538/1381443
-  commas <- which(sapply(x, function(y) any(grepl(",",y))))
-  write.csv(x, towrite, na = "", row.names = FALSE, quote = commas, fileEncoding = "UTF-8")
+  write_csv_correctly(x, towrite)
   end <- Sys.time()
   message("Written ", nrow(x), " rows to ", towrite, " in ", round((end - start), digits = 3), "s")
 }

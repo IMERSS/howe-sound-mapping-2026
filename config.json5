@@ -7,7 +7,8 @@
         options: {
             storyPageOptions: {
                 gradeNames: "reknitr.storyPage.withVizLoader",
-                mapFlavourGrade: ["hortis.libreMap.withMapboxData", "hortis.libreMap.withRegions", "hortis.libreMap.withRegionLegend", "hortis.libreMap.esriTiles"],
+                mapFlavourGrade: ["hortis.libreMap.withMapboxData", "hortis.libreMap.withRegions", "hortis.libreMap.withRegionLegend",
+                    "hortis.libreMap.esriTiles", "hortis.libreMap.withCartoKeys"],
                 // No zooms in this configuration
                 zoomDuration: 0,
                 slowZoomDuration: 0,
