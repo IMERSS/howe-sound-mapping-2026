@@ -32,6 +32,10 @@ print('catalogue taxa with no summary entry (dropped by the prepare_obs join):',
 CAT['linkName']=CAT.taxonName
 # ---------- catalogue-derived Solow + provenance
 CAT['_yr']=pd.to_numeric(CAT.eventDate.str[:4],errors='coerce')
+# The 2020 UNESCO nomination appendix is a species list entered as 583 pseudo-records, all dated 2020-07-01 at one
+# placeholder coordinate. Keep it in the canonical catalogue, but exclude it from Solow and from the map catalogue.
+LISTONLY=CAT.datasetName.str.contains('UNESCO Nomination',na=False)
+print('UNESCO appendix pseudo-records excluded from Solow and map:',int(LISTONLY.sum()))
 def solow(df):
     d=df[df._yr.notna()].drop_duplicates('eventDate'); n=len(d)
     if n==0: return pd.Series({'solow_BF':np.nan,'solow_EP':np.nan,'solow_PP':np.nan})
@@ -42,7 +46,7 @@ def solow(df):
     else: B=(n-1)/((T/tn)**(n-1)-1)
     PP=1.0 if B==math.inf else B/(1+B)
     return pd.Series({'solow_BF':B if B==math.inf else round(B,3),'solow_EP':round(1-PP,3),'solow_PP':round(PP,3)})
-sol=CAT.groupby('taxonName')[['_yr','eventDate']].apply(solow)
+sol=CAT[~LISTONLY].groupby('taxonName')[['_yr','eventDate']].apply(solow)
 prov=CAT.groupby('taxonName').basisOfRecord.apply(lambda s:'voucher' if s.isin(['PRESERVED_SPECIMEN','PreservedSpecimen']).any() else 'no_voucher')
 # ---------- ultimate list (same 45 columns as before)
 def pconcern(s):
@@ -67,6 +71,7 @@ U['solow_BF']=U.solow_BF.map(lambda b:'Inf' if b==math.inf else b)
 W(U,f"AHSBR_Tracheophyta_ultimate-list_{STAMP}.csv")
 stubs.to_csv(f"{M}/adfsimon-bioinfo/Howe_Sound/2026_synthesis/summary/Howe_Sound_Tracheophyta_summary_2026-04-20_unresolved-stubs.csv",index=False)
 ULTC=CAT.drop(columns=['_yr'])
+LISTONLY_rows=LISTONLY.values
 W(ULTC,f"AHSBR_Tracheophyta_ultimate-catalogue_{STAMP}.csv")
 # ---------- prepare_summary.R
 orig=U[["taxonName","introduction_status","occurrence_status","infrataxon_status","provincial_concern","provenance_status","solow_EP","phylum"]].rename(columns={"occurrence_status":"reportingStatus","taxonName":"scientificName"})
@@ -131,6 +136,7 @@ W(merged,f"AHSBR_Tracheophyta_ultimate-merged-summary_{STAMP}-prepared-taxa.csv"
 # ---------- prepare_obs.R
 f=ULTC.drop(columns=["day","month","year","phylum","kingdom","class","order","family","linkName","basisOfRecord","scientificNameAuthorship","taxonRank","establishmentMeans","provincialStatus","country","countryCode","stateProvince","occurrenceStatus"])
 f['BEC']=LAB.BEC.values; f['Protected']=LAB.Protected.values      # intersectShapes labels, row-aligned
+f=f[~LISTONLY_rows]   # drop UNESCO appendix pseudo-records from the map
 empty=[c for c in f.columns if c not in('BEC','Protected') and (f[c].str.strip()=='').all()]
 f=f.drop(columns=empty)
 a=assigned[['scientificName','iNaturalistTaxonId']].rename(columns={'scientificName':'taxonName'})
