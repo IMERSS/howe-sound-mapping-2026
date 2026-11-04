@@ -10,7 +10,7 @@ rawObs <- timedFread("tabular_data/AHSBR_Tracheophyta_ultimate-catalogue_2026-06
 
 filtered <- rawObs %>% select(-c(day, month, year, phylum, kingdom, class, order, family, linkName, basisOfRecord,
                                  scientificNameAuthorship, taxonRank, establishmentMeans, provincialStatus,
-                                 country, countryCode, stateProvince, occurrenceStatus))
+                                 country, countryCode, stateProvince, occurrenceStatus, datasetName, collectionCode))
 
 emptyCols <- colSums(is.na(filtered)) == nrow(filtered)
 
@@ -32,6 +32,9 @@ assigned <- rawAssigned %>% select(c(scientificName, iNaturalistTaxonId))
 withId <- merge(filtered, assigned, by.x = "taxonName", by.y = "scientificName")
 
 withId <- withId %>% filter(!is.na(iNaturalistTaxonId) & iNaturalistTaxonId != 0)
+
+# The client's observations table takes its column order from this data - scientificName then occurrenceID lead, taxonName comes last
+withId <- withId %>% relocate(scientificName, occurrenceID) %>% relocate(taxonName, .after = last_col())
 
 timedWrite(withId, "tabular_data/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-orig.csv")
 

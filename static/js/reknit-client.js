@@ -627,6 +627,21 @@ reknitr.renderSectionNav = function (storyPage) {
     const markup = `<nav class="chevron-nav" role="tablist" aria-label="Section navigation">${tabs}</nav>`;
     const sectionNav = storyPage.locate("sectionNav")[0];
     sectionNav.innerHTML = markup;
+    reknitr.trackSectionNavOverflow(sectionNav);
+};
+
+/**
+ * Mark the section nav with the class `mxcw-section-nav-overflowing` whilst its tabs overflow it and so can scroll.
+ * This can't cause relayout oscillation since overflow depends only on widths, and the class only adjusts vertical spacing.
+ * @param {HTMLElement} sectionNav - The section nav element holding the rendered tabs.
+ */
+reknitr.trackSectionNavOverflow = function (sectionNav) {
+    const observer = new ResizeObserver(() => {
+        hortis.toggleClass(sectionNav, "mxcw-section-nav-overflowing", sectionNav.scrollWidth > sectionNav.clientWidth);
+    });
+    observer.observe(sectionNav);
+    // The tabs change size independently of the nav when their font loads
+    sectionNav.querySelectorAll(".chevron-tab").forEach(tab => observer.observe(tab));
 };
 
 reknitr.updateSectionNav = function (that, activeSection) {
@@ -671,7 +686,9 @@ fluid.defaults("reknitr.storyPage", {
         contentHolder: ".mxcw-content-holder",
         content: ".mxcw-content",
         sectionNav: ".mxcw-section-nav",
-        leftPane: ".mxcw-leftPane"
+        leftPane: ".mxcw-leftPane",
+        filterPanel: ".imerss-filter-panel",
+        filtersToggle: ".imerss-filters-toggle"
     },
     components: {
         map: {
@@ -696,6 +713,13 @@ fluid.defaults("reknitr.storyPage", {
             options: {
                 before: "{storyPage}.dom.leftPane.0",
                 axis: "horizontal"
+            }
+        },
+        contentResizeBar: {
+            type: "hortis.resizeBar",
+            options: {
+                before: "{storyPage}.dom.contentHolder.0",
+                axis: "vertical"
             }
         }
     },
@@ -779,6 +803,7 @@ fluid.defaults("reknitr.storyPage", {
     },
     listeners: {
         "onCreate.listenSectionNav": "reknitr.listenSectionNav({that})",
+        "onCreate.bindFiltersToggle": "reknitr.bindFiltersToggle({that}.dom.filterPanel.0, {that}.dom.filtersToggle.0)",
         "onCreate.findPlotlyWidgets": "reknitr.findPlotlyWidgets({that}, {that}.sectionHolders)"
     }
 });
@@ -906,6 +931,19 @@ fluid.defaults("reknitr.solowPaneHandler", {
     visibleVizControls: true,
     visibleSolow: true
 });
+
+/**
+ * Bind the "Filters:" header button so that it expands and collapses the filter controls in the filter panel.
+ * This is tracked by a class on the panel since `fl-hidden` on the filters themselves is owned by `updateFiltersVisible`.
+ * @param {HTMLElement} filterPanel - The panel holding the filters, which receives the `imerss-filters-collapsed` class.
+ * @param {HTMLButtonElement} toggle - The button which toggles the state of the panel.
+ */
+reknitr.bindFiltersToggle = function (filterPanel, toggle) {
+    toggle.addEventListener("click", () => {
+        const collapsed = filterPanel.classList.toggle("imerss-filters-collapsed");
+        toggle.setAttribute("aria-expanded", String(!collapsed));
+    });
+};
 
 reknitr.visiblePropsToSelectors = {
     visibleVizControls: ".imerss-container",

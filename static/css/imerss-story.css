@@ -195,14 +195,14 @@ h2 {
 .mxcw-section-nav {
     display: flex;
     align-items: center;
-    padding-bottom: 5px;
+    padding-bottom: 8px;
 
     top: 5px;
     width: 100%;
     margin: 0 10px;
     z-index: 200;
 
-    overflow-x: scroll;
+    overflow-x: auto;
     overflow-y: clip;
 
     flex-shrink: 0;
@@ -225,7 +225,8 @@ h2 {
     display: flex;
     flex-direction: column;
     height: calc(100vh - 14rem);
-    padding: 0 1.5rem;
+    --mxcw-container-padding: 1.1rem;
+    padding: 0 var(--mxcw-container-padding);
 }
 
 .mxcw-container ::-webkit-scrollbar {
@@ -329,11 +330,11 @@ h2 {
     display: flex;
     flex-direction: column;
     height: 40%;
+    /* Allow contentResizeBar to shrink this below the height of its content */
+    min-height: 0;
     font-size: 16px;
-    padding: 0.5rem 0.5rem 0.5rem 0.5rem;
+    padding: 0.5rem 0;
     align-items: center;
-    transition-property: height;
-    transition-duration: 800ms;
     position: relative;
     /* TODO hoist this main text colour to a variable */
     color: #eefaff;
@@ -748,7 +749,12 @@ h2 {
 
 .mxcw-content .section {
     /* We've got the scrollbar at the right, eat into it a bit */
-    padding: 0 0 8px 12px;
+    padding: 0.8rem 0 8px 4px;
+}
+
+/* Leave room for the section nav's scrollbar, tracked by reknitr.trackSectionNavOverflow */
+.mxcw-section-nav-overflowing + .mxcw-content .section {
+    padding-top: 1rem;
 }
 
 .mxcw-content img {
@@ -807,6 +813,17 @@ body .mx-header ::-webkit-scrollbar-thumb {
 .imerss-container {
     margin: 0px;
     height: 60%;
+}
+
+/* Extend contentResizeBar over the container's padding, leaving a 2px gap at the left endh mapResizeBar. */
+.mxcw-container > .resize-bar {
+    margin-left: calc(2px - var(--mxcw-container-padding));
+    margin-right: calc(4px - var(--mxcw-container-padding));
+}
+
+/* Panes which hide the viz controls leave nothing for contentResizeBar to resize against */
+.mxcw-container > .resize-bar:has(+ .imerss-container.fl-hidden) {
+    display: none;
 }
 
 /* Styling for native legends */

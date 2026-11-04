@@ -117,6 +117,9 @@ for(i in 1:nrow(shapeIndex)) {
 #timedWrite(withoutEco, str_glue("{prefix}-ecoregion-discarded.csv"))
 
 
+# Keep taxonName last, after the label columns we have just added - see prepare_obs.R
+filteredObs.labels <- filteredObs.labels %>% relocate(taxonName, .after = last_col())
+
 timedWrite(filteredObs.labels, str_glue("{prefix}-labels.csv"))
 
 timedWrite(regionIndirection, str_glue("{prefix}-regionIndirection.csv"))

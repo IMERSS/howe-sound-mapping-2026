@@ -203,6 +203,11 @@
     outline: 2px solid #FCFF63;
 }
 
+/** Clicking a taxon in the main checklist filters by it - see hortis.checklist.withSingleSearch */
+.imerss-main-checklist .imerss-checklist p {
+    cursor: pointer;
+}
+
 /** Magic sauce allows resizing of widget smaller than "natural width" of .imerss-checklist-outer */
 .imerss-checklist-widgets {
     width: 0;

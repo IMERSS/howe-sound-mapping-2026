@@ -134,7 +134,7 @@ merged['solow_EP']=pd.to_numeric(merged.solow_EP,errors='coerce').fillna(0)
 merged=merged[["id","parentId","iNaturalistTaxonName","commonName","rank","iNaturalistTaxonImage","scientificName","introduction_status","reportingStatus","infrataxon_status","provincial_concern","provenance_status","solow_EP","species","subspecies","variety","nameStatus","inSummary"]]
 W(merged,f"AHSBR_Tracheophyta_ultimate-merged-summary_{STAMP}-prepared-taxa.csv")
 # ---------- prepare_obs.R
-f=ULTC.drop(columns=["day","month","year","phylum","kingdom","class","order","family","linkName","basisOfRecord","scientificNameAuthorship","taxonRank","establishmentMeans","provincialStatus","country","countryCode","stateProvince","occurrenceStatus"])
+f=ULTC.drop(columns=["day","month","year","phylum","kingdom","class","order","family","linkName","basisOfRecord","scientificNameAuthorship","taxonRank","establishmentMeans","provincialStatus","country","countryCode","stateProvince","occurrenceStatus","datasetName","collectionCode"])
 f['BEC']=LAB.BEC.values; f['Protected']=LAB.Protected.values      # intersectShapes labels, row-aligned
 f=f[~LISTONLY_rows]   # drop UNESCO appendix pseudo-records from the map
 empty=[c for c in f.columns if c not in('BEC','Protected') and (f[c].str.strip()=='').all()]
@@ -143,7 +143,8 @@ a=assigned[['scientificName','iNaturalistTaxonId']].rename(columns={'scientificN
 w=f.merge(a,on='taxonName',how='inner')
 w=w[(w.iNaturalistTaxonId!='')&(w.iNaturalistTaxonId!='0')]
 w=w.sort_values('taxonName',kind='stable')
-cols=['taxonName']+[c for c in f.columns if c not in('taxonName','BEC','Protected')]+['iNaturalistTaxonId']
-W(w[cols],f"AHSBR_Tracheophyta_ultimate-catalogue_{STAMP}-selected-orig.csv")
-W(w[cols+['BEC','Protected']],f"AHSBR_Tracheophyta_ultimate-catalogue_{STAMP}-selected-labels.csv")
+# The client's observations table takes its column order from this file - scientificName then occurrenceID lead, taxonName comes last
+cols=['scientificName','occurrenceID']+[c for c in f.columns if c not in('taxonName','scientificName','occurrenceID','BEC','Protected')]+['iNaturalistTaxonId']
+W(w[cols+['taxonName']],f"AHSBR_Tracheophyta_ultimate-catalogue_{STAMP}-selected-orig.csv")
+W(w[cols+['BEC','Protected','taxonName']],f"AHSBR_Tracheophyta_ultimate-catalogue_{STAMP}-selected-labels.csv")
 print("selected-orig columns:",cols)
