@@ -175,7 +175,9 @@ html[class~=dark] footer {
 }
 
 .imerss-copyright {
-    padding: 0.5rem 1rem;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
 }
 
 
@@ -224,7 +226,8 @@ h2 {
 .mxcw-container {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 14rem);
+    /* Allows for header material and the 1.25rem copyright footer */
+    height: calc(100vh - 12.75rem);
     --mxcw-container-padding: 1.1rem;
     padding: 0 var(--mxcw-container-padding);
 }
@@ -472,12 +475,16 @@ h2 {
 
 .mxcw-solow-taxon-holder {
     width: 60%;
+    min-width: 0;
 }
 
 .mxcw-solow-radius-holder {
     display: flex;
     width: 40%;
+    min-width: 0;
     height: 100%;
+    /* Lets the slider panel compact itself to the room it is given, wherever the map resize bars leave it */
+    container-type: inline-size;
 }
 
 .mxcw-solow-taxon-pane {
@@ -487,8 +494,10 @@ h2 {
     background: var(--data-table-surface);
     padding: 4px 1rem;
     display: flex;
+    box-sizing: border-box;
     height: 100%;
     margin-right: 1rem;
+    overflow: hidden;
 }
 
 .mxcw-solow-taxon-pane .mxcw-taxon-image {
@@ -497,6 +506,11 @@ h2 {
 
 .mxcw-solow-taxon-pane .mxcw-taxon-info {
     width: 60%;
+    min-height: 0;
+    /* This box scrolls itself - browsers applying layout containment for container-type won't report its overflow to the pane */
+    overflow-y: auto;
+    overflow-wrap: break-word;
+    container-type: inline-size;
 }
 
 .mxcw-solow-taxon-pane .taxonDisplay-image-holder {
@@ -508,6 +522,17 @@ h2 {
 .mxcw-solow-taxon-pane .imerss-photo {
     max-height: 100%;
     border-radius: 8px;
+}
+
+/* Keep the link inside the photo however narrow it gets. It is positioned relative to .imerss-photo */
+.mxcw-solow-taxon-pane .taxonDisplay-iNat-extern {
+    right: 4px;
+    bottom: 4px;
+    box-sizing: border-box;
+    max-width: calc(100% - 8px);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 
@@ -523,9 +548,11 @@ h2 {
     background: #0d3040;
     border: 2px solid #4a9aaa;
     border-radius: 18px;
-    padding: 20px 30px;
-    width: 460px;
+    padding: 10px 20px;
+    width: 100%;
+    min-width: 0;
     box-sizing: border-box;
+    overflow-y: auto;
     font-family: Arial, sans-serif;
 }
 
@@ -533,8 +560,10 @@ h2 {
 
 .mxcw-solow-radius .mxcw-solow-radius-title {
     color: #ffffff;
-    font-size: 1.5rem;
+    font-size: larger;
     font-weight: 400;
+    /* Auto margins here and on the note centre the contents vertically, without clipping the top if they overflow */
+    margin-top: auto;
 }
 
 /* ── Slider wrapper ─────────────────────────────────────────── */
@@ -548,7 +577,7 @@ h2 {
     height: 6px;
     background: #4a9aaa;
     border-radius: 3px;
-    margin: 18px 0;
+    margin: 16px 0;
 }
 
 .mxcw-solow-radius .mxcw-solow-radius-fill {
@@ -656,7 +685,7 @@ h2 {
 .mxcw-solow-radius .mxcw-solow-radius-current-value {
     text-align: center;
     color: #ffffff;
-    font-size: 1.6rem;
+    font-size: larger;
     font-weight: 600;
     letter-spacing: 0.02em;
 }
@@ -666,18 +695,54 @@ h2 {
 .mxcw-solow-radius .mxcw-solow-radius-note {
     color: #a8c8d0;
     font-style: italic;
-    font-size: 15px;
-    line-height: 1.5;
+    font-size: 14px;
+    line-height: 1.3;
     margin-top: 4px;
+    margin-bottom: auto;
+}
+
+@container (max-width: 260px) {
+    .mxcw-solow-radius {
+        padding: 6px 10px;
+    }
+
+    .mxcw-solow-radius .mxcw-solow-radius-snap-label {
+        font-size: 11px;
+    }
+
+    .mxcw-solow-radius .mxcw-solow-radius-note {
+        font-size: 12px;
+        line-height: 1.2;
+    }
+}
+
+/* The labels begin to collide below about 170px - the ticks and the current value remain */
+@container (max-width: 190px) {
+    .mxcw-solow-radius .mxcw-solow-radius-snap-label {
+        display: none;
+    }
 }
 
 
 .mxcw-taxon-fields {
     display: grid;
-    grid-template-columns: max-content 1fr;
-    column-gap: 1.5rem;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 0.75rem;
     row-gap: 3px;
     margin: 0;
+}
+
+/* Stack each label above its value once there is no room for two columns */
+@container (max-width: 230px) {
+    .mxcw-solow-taxon-pane .mxcw-taxon-fields {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 0;
+    }
+
+    .mxcw-solow-taxon-pane .mxcw-taxon-fields dt {
+        font-size: smaller;
+        opacity: 0.8;
+    }
 }
 
 .mxcw-taxon-name {

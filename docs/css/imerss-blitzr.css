@@ -46,7 +46,8 @@
     margin-left: auto;
 }
 
-.imerss-filters-collapsed .imerss-main-filters {
+.imerss-filters-collapsed .imerss-main-filters,
+.imerss-filters-collapsed .imerss-taxa-filters {
     display: none;
 }
 

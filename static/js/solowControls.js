@@ -33,7 +33,7 @@ reknitr.solowRadius.markup = `
     <div class="mxcw-solow-radius-snap-markers"></div>
     <div class="mxcw-solow-radius-current-value"></div>
     <div class="mxcw-solow-radius-note">
-        *Aggregate sightings into populations: default = 1000 m
+        *Aggregate sightings into populations: default = 5000 m
     </div>
 </div>
 `;
@@ -47,7 +47,7 @@ reknitr.solowRadius.markup = `
  */
 reknitr.solowRadius.SNAP_VALUES = [500, 750, 1000, 2000, 5000, 7500, 10000];
 
-/** Default slider index corresponding to 1000 m.
+/** Default slider index corresponding to 5000 m.
  * @type {Number}
  */
 reknitr.solowRadius.DEFAULT_INDEX = 4;
