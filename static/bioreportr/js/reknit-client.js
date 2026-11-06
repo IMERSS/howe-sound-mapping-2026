@@ -650,7 +650,23 @@ reknitr.updateSectionNav = function (that, activeSection) {
         hortis.toggleClass(sectionNode, "active", index === activeSection);
         sectionNode.setAttribute("aria-selected", index === activeSection ? "true" : "false");
     });
-    that.locate("sectionNav")[0].querySelector(".active").scrollIntoView();
+    reknitr.scrollTabIntoView(that.locate("sectionNav")[0], that.locate("sectionNav")[0].querySelector(".active"));
+};
+
+/**
+ * Scroll the section nav horizontally so that a tab is fully visible. Unlike `scrollIntoView` this scrolls only the nav
+ * itself, rather than also any scrollable ancestor such as the page when the map is stacked above the story.
+ * @param {HTMLElement} sectionNav - The section nav element holding the tabs, which scrolls horizontally.
+ * @param {HTMLElement} tab - The tab which should be brought into view.
+ */
+reknitr.scrollTabIntoView = function (sectionNav, tab) {
+    const navRect = sectionNav.getBoundingClientRect();
+    const tabRect = tab.getBoundingClientRect();
+    if (tabRect.left < navRect.left) {
+        sectionNav.scrollLeft += tabRect.left - navRect.left;
+    } else if (tabRect.right > navRect.right) {
+        sectionNav.scrollLeft += tabRect.right - navRect.right;
+    }
 };
 
 

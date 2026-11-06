@@ -49,13 +49,17 @@ main .content h3, main.content h2, main h1 {
     height: 100%;
 }
 
-/** Defeat side matter which screws up layout when page is wide **/
-.xl\:hx-block {
+/** Defeat side matter which screws up layout when page is wide - the sidebar, which doubles as the mobile menu, is
+    handled in the compact header rules below **/
+.xl\:hx-block:not(.sidebar-container) {
     display: none !important;
 }
 
 .imerss-page {
     width: 40%;
+    /* As flex items the columns would otherwise refuse to shrink below their content, so that the leftPane's margin and
+       the resize bar between them made the page a few pixels wider than the window */
+    min-width: 0;
 }
 
 .imerss-navbar-title {
@@ -106,7 +110,8 @@ nav a {
     background-color: #184E6280;
 }
 
-.imerss-navbar a, .imerss-subnav a, .imerss-subnav .search-wrapper {
+/* Lift the controls above the dimming overlays added by ::after - the hamburger can't be clicked otherwise */
+.imerss-navbar a, .imerss-subnav a, .imerss-subnav .search-wrapper, .imerss-subnav .hamburger-menu {
     position: relative;
     z-index: 2;
 }
@@ -162,7 +167,7 @@ nav a {
 }
 
 /* Fix up wonky height of links inside subnav e.g. GitHub icon */
-.imerss-subnav a {
+.imerss-subnav .imerss-subnav-icon {
     display: flex;
 }
 
@@ -758,6 +763,8 @@ h2 {
     /* Small gap so that different resize bars are detached */
     margin-right: 2px;
     width: 60%;
+    /* See .imerss-page */
+    min-width: 0;
 }
 
 
@@ -944,4 +951,198 @@ body .mx-header ::-webkit-scrollbar-thumb {
     right: 0;
     width: 100%;
     height: 100%;
+}
+
+.mxcw-paneKey-Status .html-widget {
+    margin-top: 1rem;
+}
+
+.mxcw-dataPane-TopContributions {
+    background-color: white;
+}
+
+/** Don't display these for now, dedicated panels exist **/
+.imerss-blitz-records {
+    display: none;
+}
+
+/** We need the filter impl but no UI */
+.imerss-region-filter {
+    display: none;
+}
+
+/* Hide the data pane, which is still present in the content */
+.mxcw-content-holder .mxcw-data {
+    min-height: 0;
+    height: 0;
+}
+
+.imerss-filter-controls {
+    margin-top: 2px;
+    margin-bottom: -2px;
+}
+
+.imerss-filter {
+    padding: 1px 0 2px;
+
+}
+
+.mxcw-leftPane > .resize-bar {
+    margin-top: 2px;
+}
+
+.resize-bar {
+    --bar-color: rgba(192, 192, 192, 0.5);
+    --bar-color-hover: rgba(192, 192, 192, 0.6);
+    --bar-color-active: rgba(192, 192, 192, 0.8);
+}
+
+/* ------------------------------------------------------------------------------------------------------------------
+   Responsive layout. These rules come last so that they win over the base rules above which they override.
+
+   Compact header, below 920px - Hextra switches to its mobile layout at 768px, but our subnav only has the 40% of the
+   width given to .imerss-page, and its menu links stop fitting there at around 920px. So below that width we hide
+   the menu links and show the hamburger, and restyle Hextra's mobile menu (its .sidebar-container, whose links come
+   from site.Menus.main - see sidebar.html) as a dropdown beneath the hamburger, in both the two column and stacked
+   layouts.
+
+   Stacked layout, below 768px - the map no longer has room beside the story.
+   ------------------------------------------------------------------------------------------------------------------ */
+
+@media (min-width: 920px) {
+    .imerss-subnav a {
+        display: flex;
+    }
+
+    /* The story page's sidebar is disabled, but Hextra still shows it as a placeholder on wide screens */
+    .sidebar-container.xl\:hx-block {
+        display: none;
+    }
+}
+
+@media (max-width: 919.98px) {
+    .imerss-subnav nav > a:not(.imerss-subnav-icon) {
+        display: none;
+    }
+
+    .imerss-subnav .hamburger-menu {
+        display: block;
+    }
+
+    .imerss-subnav {
+        z-index: 20;
+    }
+
+    /* Dropdown beneath the hamburger - the 100px navigation banner plus the 4rem subnav. Hextra styles it below 768px
+       as a full screen panel, which these rules override */
+    aside.sidebar-container {
+        display: flex;
+        position: fixed;
+        top: calc(100px + 4rem);
+        right: 1rem;
+        bottom: auto;
+        left: auto;
+        width: auto;
+        min-width: 12rem;
+        max-height: calc(100vh - 100px - 4rem);
+        overflow-y: auto;
+        align-self: auto;
+        padding-top: 0;
+        /* Above the section nav, whose z-index of 200 makes it a stacking context as a flex item */
+        z-index: 300;
+        background-color: #184E62;
+        border: 1px solid rgba(253, 242, 206, 0.35);
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+        transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+    }
+
+    /* The classes toggled by Hextra's menu.js for closed and open, which it only styles below 768px */
+    aside.sidebar-container.max-md\:\[transform\:translate3d\(0\2c -100\%\2c 0\)\] {
+        transform: translate3d(0, -0.5rem, 0);
+        opacity: 0;
+        visibility: hidden;
+    }
+
+    aside.sidebar-container.max-md\:\[transform\:translate3d\(0\2c 0\2c 0\)\] {
+        transform: none;
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .sidebar-container ul.md\:hx-hidden {
+        display: flex;
+    }
+
+    .sidebar-container > .hextra-scrollbar {
+        height: auto;
+    }
+
+    .sidebar-container a {
+        color: #FDF2CE;
+    }
+
+    /* Still catches a click outside the dropdown to close it, but without dimming the page */
+    .mobile-menu-overlay {
+        background-color: transparent !important;
+    }
+}
+
+/* Stacked layout - the subnav, then the map and its data pane, then the story are stacked in .imerss-main, which
+   scrolls beneath the navigation banner. .imerss-page is flattened so that the subnav, which it holds, can be ordered
+   above the map, where it sticks over the lower part of the banner's background so that the hamburger stays in reach */
+@media (max-width: 767.98px) {
+    .imerss-main {
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    /* Only .imerss-main scrolls, so the banner's background needn't be fixed - in a fixed layer it can fail to paint
+       beside the scroller's content */
+    .imerss-navbar-background {
+        position: absolute;
+    }
+
+    .imerss-page {
+        display: contents;
+    }
+
+    .imerss-subnav {
+        order: -1;
+        position: sticky;
+        top: 0;
+        flex-shrink: 0;
+        margin-left: 0;
+    }
+
+    /* Overrides any width left inline by a drag of the side by side layout's mainResizeBar, which is hidden here */
+    .mxcw-leftPane {
+        width: 100% !important;
+        height: calc(55vh + 280px);
+        flex-shrink: 0;
+        margin-right: 0;
+    }
+
+    .imerss-main > .resize-bar {
+        display: none;
+    }
+
+    .mxcw-story-holder {
+        width: 100%;
+    }
+}
+
+/* Phone widths - keep a long site title within the 100px navigation banner */
+@media (max-width: 600px) {
+    .imerss-navbar-title {
+        font-size: 16px;
+        letter-spacing: 0.1rem;
+    }
+
+    .imerss-navbar .imerss-navbar-index span {
+        font-size: 11px;
+    }
 }

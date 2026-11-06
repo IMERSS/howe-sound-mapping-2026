@@ -9,7 +9,7 @@
 #    static/bioreportr/img/download.svg) - regenerate these in the target with "npm run build"
 #  - Project-local content and configuration: config.json5, hugo.yaml, package.json, mapboxData.json, content/,
 #    layouts/partials/custom/head-end.html, layouts/partials/favicons.html, static/local/ (including
-#    static/local/js/<project>.js, e.g. saanich.js, howe.js, and static/local/css/howe.css),
+#    static/local/js/<project>.js, e.g. saanich.js, howe.js),
 #    R/build.R (lists the project's data files), scripts/*.R map and analysis scripts
 #  - Experimental R parsing work: src/js/parseR.mjs, src/js/r-parser/
 #  - Generated output: layouts/story/single.html (written by reknit from src/html/template.html), docs/
