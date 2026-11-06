@@ -84,7 +84,7 @@ params:
     displayTitle: true
     displayLogo: true
     logo:
-      path: images/imerss.png
+      path: local/images/imerss.png
       width: 200
       # height: 60
       # The logo links to IMERSS, while the site title links to this site's home page

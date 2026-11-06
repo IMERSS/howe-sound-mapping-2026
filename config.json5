@@ -44,7 +44,7 @@
                         label: "Common Name"
                     }, {
                         key: "reportingStatus",
-                        label: "Reporting status",
+                        label: "Reporting status"
                     }, {
                         key: "id",
                         label: "ID"
@@ -52,9 +52,9 @@
                         key: "iNaturalistTaxonName",
                         label: "Link name"
                     }],
-                    obsFile: "../data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv",
-                    taxaFile: "../data/tabular/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv",
-                    regionIndirectionFile: "../data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-regionIndirection.csv"
+                    obsFile: "../local/data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv",
+                    taxaFile: "../local/data/tabular/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv",
+                    regionIndirectionFile: "../local/data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-regionIndirection.csv"
                 }
             },
             paneHandlers: {
@@ -116,72 +116,72 @@
     }],
     copyJobs: [{ // TODO: Extend module-relative addressing to 3rd-party modules
         source: "%self/node_modules/@imerss/inat-components/dist/standalone.min.js",
-        target: "%self/static/js/inat-components-standalone.min.js"
+        target: "%self/static/inat-components/js/standalone.min.js"
     }, {
-        source: "%infusion/src/lib/jquery/core/js/jquery.js",
-        target: "%self/static/js/jquery.js"
+        source: "%imerss-bioinfo/docs/js/jquery.js",
+        target: "%self/static/imerss-bioinfo/js/jquery.js"
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-viz-lib.js",
-        target: "%self/static/js/imerss-viz-lib.js"
+        target: "%self/static/imerss-bioinfo/js/imerss-viz-lib.js"
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-viz-lib.js.map",
-        target: "%self/static/js/imerss-viz-lib.js.map",
+        target: "%self/static/imerss-bioinfo/js/imerss-viz-lib.js.map",
         replaceSource: "\"sourceRoot\":\"../..\"",
-        replaceTarget: "\"sourceRoot\":\"../../../bagatelle/\""
+        replaceTarget: "\"sourceRoot\":\"../../../../bagatelle/\""
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-viz-new-core.js",
-        target: "%self/static/js/imerss-viz-new-core.js"
+        target: "%self/static/imerss-bioinfo/js/imerss-viz-new-core.js"
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-viz-new-core.js.map",
-        target: "%self/static/js/imerss-viz-new-core.js.map",
+        target: "%self/static/imerss-bioinfo/js/imerss-viz-new-core.js.map",
         replaceSource: "\"sourceRoot\":\"../..\"",
-        replaceTarget: "\"sourceRoot\":\"../../../bagatelle/\""
+        replaceTarget: "\"sourceRoot\":\"../../../../bagatelle/\""
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-viz-new.js",
-        target: "%self/static/js/imerss-viz-new.js"
+        target: "%self/static/imerss-bioinfo/js/imerss-viz-new.js"
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-viz-new.js.map",
-        target: "%self/static/js/imerss-viz-new.js.map",
+        target: "%self/static/imerss-bioinfo/js/imerss-viz-new.js.map",
         replaceSource: "\"sourceRoot\":\"../..\"",
-        replaceTarget: "\"sourceRoot\":\"../../../bagatelle/\""
+        replaceTarget: "\"sourceRoot\":\"../../../../bagatelle/\""
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-viz.js",
-        target: "%self/static/js/imerss-viz.js"
+        target: "%self/static/imerss-bioinfo/js/imerss-viz.js"
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-blitz.js",
-        target: "%self/static/js/imerss-blitz.js"
+        target: "%self/static/imerss-bioinfo/js/imerss-blitz.js"
     }, {
         source: "%imerss-bioinfo/docs/js/imerss-plants.js",
-        target: "%self/static/js/imerss-plants.js"
+        target: "%self/static/imerss-bioinfo/js/imerss-plants.js"
     }, {
         source: "%imerss-bioinfo/src/client/img/Arrow-up.svg",
-        target: "%self/docs/img/Arrow-up.svg"
+        target: "%self/static/imerss-bioinfo/img/Arrow-up.svg"
     }, {
         source: "%imerss-bioinfo/src/client/img/Arrow-down.svg",
-        target: "%self/docs/img/Arrow-down.svg"
+        target: "%self/static/imerss-bioinfo/img/Arrow-down.svg"
     }, {
         source: "%imerss-bioinfo/src/client/img/up-arrow.svg",
-        target: "%self/docs/img/up-arrow.svg"
+        target: "%self/static/imerss-bioinfo/img/up-arrow.svg"
     }, {
         source: "%imerss-bioinfo/src/client/img/external-link.svg",
-        target: "%self/docs/img/external-link.svg"
+        target: "%self/static/imerss-bioinfo/img/external-link.svg"
     },  {
         source: "%self/img/download.svg",
-        target: "%self/docs/img/download.svg"
+        target: "%self/static/bioreportr/img/download.svg"
     }, {
         source: "%self/img/12993632-large.jpeg",
-        target: "%self/docs/img/12993632-large.jpeg"
+        target: "%self/static/local/img/12993632-large.jpeg"
     }, {
         source: "%imerss-bioinfo/docs/css/imerss-viz-lib.css",
-        target: "%self/static/css/imerss-viz-lib.css"
+        target: "%self/static/imerss-bioinfo/css/imerss-viz-lib.css"
     }, {
         source: "%imerss-bioinfo/docs/css/imerss-viz-new-core.css",
-        target: "%self/static/css/imerss-viz-new-core.css"
+        target: "%self/static/imerss-bioinfo/css/imerss-viz-new-core.css"
     }, {
         source: "%imerss-bioinfo/docs/css/imerss-viz-new.css",
-        target: "%self/static/css/imerss-viz-new.css"
+        target: "%self/static/imerss-bioinfo/css/imerss-viz-new.css"
     }, {
         source: "%imerss-bioinfo/docs/css/imerss-blitz.css",
-        target: "%self/static/css/imerss-blitz.css"
+        target: "%self/static/imerss-bioinfo/css/imerss-blitz.css"
     }]
 }

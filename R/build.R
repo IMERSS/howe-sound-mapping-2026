@@ -2,10 +2,10 @@
 
 source("R/utils.R")
 
-# Copy files from data/tabular_data to docs/data/tabular
+# Copy files from tabular_data to static/local/data/tabular
 
 src_dir <- "tabular_data"
-dst_dir <- "static/data/tabular"
+dst_dir <- "static/local/data/tabular"
 
 # Create destination directory if it doesn't exist
 dir.create(dst_dir, recursive = TRUE, showWarnings = FALSE)

@@ -69,15 +69,15 @@ a terminal in its root folder and typing
     npm install
 
 Blogdown and Hugo are installed automatically by the R platform, but Hugo's [hugo.yaml](hugo.yaml) file is the
-root source of configuration for the published website which you should become familiar with. 
+root source of configuration for the published website which you should become familiar with.
 Here's [Hugo's guide](https://gohugo.io/configuration/introduction/) to this file.
-
 
 ## Knitting and reknitting markup from your markdown
 
 The first part of the publishing chain is to use the builtin "knitting" functionality in R studio described in the
 [authoring guide](https://rmarkdown.rstudio.com/authoring_quick_tour.html) - open up one of the .Rmd file
-in the [story](content/story) directory and press the "Knit" button above it. This will produce an HTML file in ths same directory which can be
+in the [story](content/story) directory and press the "Knit" button above it. This will produce an HTML file in the
+same directory which can be
 previewed to see if your maps, content and any widgets look as expected in a standalone mode.
 
 As you edit your documents in [content/story](content/story),
@@ -100,7 +100,7 @@ choropleth which can be filtered by taxon status.
 live at [Extirpation Risk](https://imerss.github.io/howe-sound-mapping-2026/story/#pane:Solow) --- a special vignette
 allowing taxa to be ranked by extinction risk and showing communities agglomerated to a particular population radius.
 
-The type of vignette is customised by a mixture of YAML front matter in the .Rmd files, and entries in the 
+The type of vignette is customised by a mixture of YAML front matter in the .Rmd files, and entries in the
 [config.json5](config.json5) file's `paneHandlers` section --- we are gradually migrating from the former to the latter.
 Currently you must have an entry in `paneHandlers` matching the basename of the .Rmd file for each vignette.
 
@@ -108,7 +108,7 @@ Once your vignette knits properly using the R Studio "Knit" process, you can rek
 the hugo/blogdown site as a whole by running
 "Build Website" from R Studio's "Build" menu.
 Commit and push the output from this stage using R Studio or command-line git as you prefer. For using R Studio
-to commit your file, you can follow the steps in 
+to commit your file, you can follow the steps in
 [section 12.4](https://happygitwithr.com/rstudio-git-github.html#make-local-changes-save-commit) of the guide to using
 GitHub in R studio.
 
@@ -134,30 +134,31 @@ The vizualisation requires three CSV files to be configured, which you can see i
 [config.json5](config.json5). These are:
 
 `obsFile` holding the catalogue of observations. For this visualisation, this file is
-[AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv](docs/data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv).
+[AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv](docs/local/data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv).
 
-`taxaFile` holding the aligned checklist/summary, together with entries for its higher taxa. For this visualisation, this file is
-[AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv](docs/data/tabular/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv).
+`taxaFile` holding the aligned checklist/summary, together with entries for its higher taxa. For this visualisation,
+this file is
+[AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv](docs/local/data/tabular/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv).
 
 `regionIndirectionFile` holding a condensed representation of regions which `obsFile` has been intersected with. This file
 can be empty if you are not rendering any regions. If you would like to populate it, you can fill out a shapefile index
-such as [Howe Shapefile Index.csv](tabular_data/Howe Shapefile Index.csv) mapping a set of SHP files and the relevant 
+such as [Howe Shapefile Index.csv](tabular_data/Howe Shapefile Index.csv) mapping a set of SHP files and the relevant
 field names, and supply it to [intersectShapes.R](scripts/intersectShapes.R) to intersect these with your catalogue.
 
 `obsFile` and `taxaFile` are prepared using the scripts [prepare_summary.R](scripts/prepare_summary.R),
 [prepare_summary_final.R](scripts/prepare_summary_final.R) and [prepareObs.R](scripts/prepareObs.R),
 accepting data from an upstream data processing pipeline
 in [checklist-catalogue-alignment-workflow](https://github.com/emench/checklist-catalogue-alignment-workflow) which you
-can adapt to your purposes. 
+can adapt to your purposes.
 
 `taxaFile` and `obsFile` particularly can contain arbitrary extra columns you want rendered in the interface, but
 need to have a core set of aligned fields.
 
-`obsFile` must have a column `linkTaxonId` (aliased to `iNaturalistTaxonId`) which aligns observation rows with the 
+`obsFile` must have a column `linkTaxonId` (aliased to `iNaturalistTaxonId`) which aligns observation rows with the
 column of the same name in `taxaFile`. In addition it should have columns `decimalLatitude`, `decimalLongitude` holding
 the WGS84 coordinates of the observation as well as `eventDate` in an ISO8601 format.
 
-The format of `taxaFile` is more constrained, and it may be helpful to apply the 
+The format of `taxaFile` is more constrained, and it may be helpful to apply the
 [assignBNames](https://github.com/IMERSS/imerss-bioinfo/blob/main/src/assignBNames.js) JavaScript data preparation script
 to compute some of the columns with reference to iNaturalist's API.
 
@@ -188,11 +189,10 @@ Sample optional taxon fields:
 | `subspecies`                              | string | Subspecies name component, if any.                                                            |
 | `variety`                                 | string | Variety name component, if any.                                                               |
 
-
 ## Get involved
 
 To suggest improvements to these instructions and publishing system, please
 [raise an issue](https://github.com/IMERSS/bioreportr/issues). For a wider background
 surrounding this project and its philosophy, please go to
-[Knitting Data Communities](https://lichen-community-systems/knitting-data-communities/) or 
+[Knitting Data Communities](https://lichen-community-systems/knitting-data-communities/) or
 [IMERSS](https://imerss.org/).

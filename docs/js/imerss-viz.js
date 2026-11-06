@@ -16,8 +16,7 @@ fluid.defaults("hortis.standardVizLoader", {
         // Refine this so we could have another .imerss-filter-controls elsewhere
         filterControls: ".imerss-filter-panel .imerss-filter-controls",
         filters: ".imerss-filter-panel .imerss-main-filters",
-        // Not scoped to the filter panel since some pages hold the checklist in its own tab
-        checklist: ".imerss-main-checklist"
+        checklist: ".imerss-filter-panel .imerss-main-checklist"
     },
     gridResolution: 100,
     members: {
@@ -244,3 +243,4 @@ hortis.renderVizGridTooltip = function (that, grid, rowById, cellId) {
     };
     return fluid.stringTemplate(hortis.mapGridTooltipTemplate, terms);
 };
+                                                                        
