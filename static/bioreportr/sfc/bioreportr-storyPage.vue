@@ -20,12 +20,11 @@
 <script src="%imerss-bioinfo/src/client/js/i6/imerss-plants.js"></script>
 <script src="%imerss-bioinfo/src/client/js/i6/blitz.js"></script>
 <script src="%imerss-bioinfo/src/client/js/i6/hashManager.js"></script>
-<script src="../js/i6/story.js"></script>
-<script src="../js/i6/solow.js"></script>
+<script src="../js/story.js"></script>
+<script src="../js/solow.js"></script>
 <style src="https://cdn.materialdesignicons.com/2.0.46/css/materialdesignicons.min.css"></style>
 <style src="%imerss-bioinfo/src/client/css/imerss-core.css"></style>
 <style src="%imerss-bioinfo/src/client/css/imerss-i6.css"></style>
-<style src="../css/imerss-story-i6.css"></style>
 <script>
 "use strict";
 
@@ -185,11 +184,19 @@ fluid.def("bioreportr.storyPage", {
     // The buttons beside the tables of records clearing the record selected in them, disabled whilst there is none
     noRecordSelected: "$compute:bioreportr.storyPage.noRecordSelected({self}.map.recordSelector.filterState)",
     resetRecord: "$method:hortis.libreMap.recordSelector.reset({self}.map.recordSelector)",
-    // Shows the title of any element of the page in a tooltip, as jQuery UI's tooltip widget did in Infusion 4
+    // Shows the title of any element of the page in a styled tooltip of its own, in place of the browser's
     titleTooltips: {
         $component: {
             $layers: "hortis.titleTooltips"
         }
+    },
+    // The earliest record of each taxon, and the headings of the sections of the summary of a map cell, by reporting
+    // status - see bioreportr.cellTooltip
+    earliestRecords: "$compute:bioreportr.cellTooltip.earliestRecords({self}.obsRows)",
+    cellTooltipHeadings: {
+        unconfirmed: "Historical species recorded here: records, and year last seen",
+        new: "Newly reported species here: earliest record in this atlas",
+        confirmed: "Most recorded confirmed species"
     },
     // The panel of records beneath the map opens and closes as an accordion, its header naming the filters narrowing it
     recordsCollapsed: true,
@@ -420,6 +427,9 @@ bioreportr.storyPage.toggle = function (that, member) {
                                 <div class="imerss-filter"></div>
                                 <div class="imerss-status-filter imerss-filter" @id="statusFilter"></div>
                                 <div class="imerss-collector-filter imerss-filter" @id="collectorFilter"></div>
+                                <!-- Filled only by a story defining these filters, as the Saanich story does -->
+                                <div class="imerss-locality-filter imerss-filter" @id="localityFilter"></div>
+                                <div class="imerss-time-filter imerss-filter" @id="timePeriodFilter"></div>
                             </div>
                             <div @id="recordReporter"></div>
                             <div @id="checklist"></div>

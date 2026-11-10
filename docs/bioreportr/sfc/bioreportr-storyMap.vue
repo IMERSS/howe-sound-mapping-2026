@@ -9,7 +9,7 @@
 <script src="%imerss-bioinfo/src/client/js/i6/tooltip.js"></script>
 <script src="%imerss-bioinfo/src/client/js/i6/libreMap.js"></script>
 <script src="%imerss-bioinfo/src/client/js/i6/polygonDraw.js"></script>
-<script src="../js/i6/story.js"></script>
+<script src="../js/story.js"></script>
 <style src="%imerss-bioinfo/src/client/css/maplibre-gl.css"></style>
 <style src="%imerss-bioinfo/src/client/css/mapbox-gl-draw.css"></style>
 <script>
@@ -35,9 +35,11 @@ fluid.def("bioreportr.storyMap", {
     gridResolution: "{storyPage}.gridResolution",
     gridVisible: "{storyPage}.activePane.visibleGrid",
     maxObsCountOverride: "{storyPage}.activePane.maxObsCountOverride",
+    // A summary of a map cell, by the reporting status of its species - see bioreportr.cellTooltip
     gridSelector: {
         $component: {
-            renderTooltip: "$method:hortis.renderVizGridTooltip({libreMap}.obsQuantiser.grid, {vizLoader}.taxa.rowById, {0}:cellId)"
+            renderTooltip: `$method:bioreportr.cellTooltip.render({libreMap}.obsQuantiser.grid, {vizLoader}.taxa.rowById,
+                {vizLoader}.finalFilteredObs, {storyPage}.earliestRecords, {storyPage}.cellTooltipHeadings, {0}:cellId)`
         }
     },
     showPane: "$effect:bioreportr.storyMap.showPane({self}, {self}.readyMap, {storyPage}.mapData, {storyPage}.activePaneKey)",

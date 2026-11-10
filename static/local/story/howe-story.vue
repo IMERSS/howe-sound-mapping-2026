@@ -72,9 +72,7 @@ fluid.def("howe.story", {
     },
     map: {
         $component: {
-            $layers: ["hortis.libreMap.withTiles", "hortis.libreMap.esriTiles"],
-            zoomDuration: 0,
-            slowZoomDuration: 0
+            $layers: ["hortis.libreMap.withTiles", "hortis.libreMap.esriTiles"]
         }
     }
 });

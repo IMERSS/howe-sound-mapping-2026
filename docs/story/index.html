@@ -18,19 +18,13 @@
 <meta property="og:url" content="/story/"><meta property="article:section" content="">
 
 
-<meta itemprop="name" content="Story page">
-<meta itemprop="description" content="">
 
-<meta itemprop="wordCount" content="0">
-<meta itemprop="keywords" content=""><meta name="twitter:card" content="summary"><meta name="twitter:title" content="Story page">
-<meta name="twitter:description" content="">
-
-    <link rel="preload" href="../css/compiled/main.min.0d60cbb74d97ccaea83c3ea6d973c5961d69642b38588069a503bc04e284cbc7.css" as="style" integrity="sha256-DWDLt02XzK6oPD6m2XPFlh1pZCs4WIBppQO8BOKEy8c=">
-    <link href="../css/compiled/main.min.0d60cbb74d97ccaea83c3ea6d973c5961d69642b38588069a503bc04e284cbc7.css" rel="stylesheet" integrity="sha256-DWDLt02XzK6oPD6m2XPFlh1pZCs4WIBppQO8BOKEy8c=">
-
-
-
-  <link href="../css/custom.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css" rel="stylesheet" integrity="sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=">
+  <meta itemprop="name" content="Story page">
+  <meta itemprop="description" content="Átl’ḵa7tsem/Howe Sound Biosphere Vegetation Analysis">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Story page">
+  <meta name="twitter:description" content="Átl’ḵa7tsem/Howe Sound Biosphere Vegetation Analysis">
+<link href="../bioreportr/hextra/css/main.css" rel="stylesheet">
 
 
   <script>
@@ -217,9 +211,7 @@ fluid.def("howe.story", {
     },
     map: {
         $component: {
-            $layers: ["hortis.libreMap.withTiles", "hortis.libreMap.esriTiles"],
-            zoomDuration: 0,
-            slowZoomDuration: 0
+            $layers: ["hortis.libreMap.withTiles", "hortis.libreMap.esriTiles"]
         }
     }
 });
@@ -1390,7 +1382,7 @@ fluid.hashManager.instance = fluid.hashManager(typeof(window) === "undefined" ||
 
 }).call(globalThis);
 //# sourceURL=../vendor/imerss-bioinfo/src/client/js/i6/hashManager.js</script>
-    <script data-fluid-indent="4" data-fluid-hydrated="" fluid-src="../bioreportr/js/i6/story.js" id="fl-script-bioreportr.storyPage-7">(function () {/*
+    <script data-fluid-indent="4" data-fluid-hydrated="" fluid-src="../bioreportr/js/story.js" id="fl-script-bioreportr.storyPage-7">(function () {/*
 Copyright 2025-2026 Antranig Basman
 Licensed under the Educational Community License (ECL), Version 2.0 or the New
 BSD license. You may not use this file except in compliance with one these
@@ -1403,8 +1395,7 @@ https://github.com/fluid-project/infusion/raw/master/Infusion-LICENSE.txt
 
 /* global Papa */
 
-// The story map of a bioReportR project, ported to Infusion 6 from reknit-client.js and imerss-viz-reknit.js of
-// howe-sound-mapping-2026. Its panes are written by the project's src/js/storyBuild.js from the HTML knitted from its
+// The story map of a bioReportR project. Its panes are written by the project's src/js/storyBuild.js from the HTML knitted from its
 // R Markdown. The pane shown is held in the URL's hash, from which the story page computes it before anything is
 // rendered - see bioreportr-storyPage.vue - so that everything which depends on the pane - its tab, its section, the
 // map's layers and camera, the filters - is first rendered for the pane the URL names.
@@ -1426,7 +1417,10 @@ fluid.registerNamespace("bioreportr.pageFragment");
  * @property {String} paneKey - The pane's key, the name of the R Markdown file it was knitted from
  * @property {String} title - The pane's title
  * @property {String} shortTitle - The pane's title as shown in its tab
- * @property {String} file - The file holding the pane's section, relative to the story's material
+ * @property {String|null} file - The file holding the pane's section, relative to the story's material - null if the
+ *     section is written into the template of the pane's component
+ * @property {String} [paneComponent] - The name of the component rendering the pane's section, defined in a Single
+ *     File Component into whose template storyBuild.js writes the section
  * @property {String[]} layers - The names of the pane handler layers its front matter names, e.g. "reknitr.obsMapPaneHandler"
  * @property {Boolean} [visibleMap] - Whether the map is shown
  * @property {Boolean} [visibleGrid] - Whether the map's grid of observations is shown
@@ -1439,8 +1433,8 @@ fluid.registerNamespace("bioreportr.pageFragment");
  * @property {String[]} [selectableRegions] - The ids of the layers of the pane's map which may be selected
  */
 
-// The settings implied by each pane handler layer a pane's front matter may name, ported from the Infusion 4 grades
-// of the same names
+// The settings implied by each pane handler layer a pane's front matter may name, as its paneHandlerLayers - the names
+// are those of the R Markdown already written, e.g. "reknitr.solowPaneHandler"
 bioreportr.paneLayerDefaults = {
     "reknitr.obsMapPaneHandler": {
         visibleMap: true,
@@ -1520,6 +1514,14 @@ bioreportr.storyPage.selectPane = function (that, paneKey) {
 };
 
 bioreportr.storyPane.url = (storyBase, file) => storyBase + file;
+
+/**
+ * The layers of the component rendering a pane's section - that named by the `paneComponent` of its front matter, if
+ * any, or else bioreportr.verbatimSection, rendering the section fetched from the pane's file verbatim.
+ * @param {PaneSettings} pane - The pane's settings
+ * @return {String[]} The names of the layers
+ */
+bioreportr.storyPane.sectionLayers = pane => [pane.paneComponent || "bioreportr.verbatimSection"];
 
 // Loaded once the observations are filtered, from genuine data rather than placeholders
 bioreportr.storyPage.loaded = (finalFilteredObs, ...isPlaceholders) => !fluid.withPlaceholder.any(...isPlaceholders);
@@ -1896,12 +1898,122 @@ bioreportr.choroplethSlider.doFilter = function (obsRows, filterState, yearCache
     return filterState === null ? obsRows : obsRows.filter(row => yearCache.get(row) <= filterState);
 };
 
+/** Summaries shown in tooltips, e.g. of a cell of the map's grid **/
+
+fluid.registerNamespace("bioreportr.tip");
+fluid.registerNamespace("bioreportr.cellTooltip");
+
+// The colour of each reporting status, as given in the statusColors of each story's Atlas pane
+bioreportr.statusColours = {confirmed: "#5a96d2", unconfirmed: "#decb90", new: "#7562b4"};
+
+// Counts are shown plainly, without separators of thousands
+bioreportr.formatCount = count => String(count);
+
+bioreportr.year = eventDate => String(eventDate ?? "").substring(0, 4);
+
+bioreportr.obsDateComparator = (a, b) => a.eventDate < b.eventDate ? -1 : a.eventDate > b.eventDate ? 1 : 0;
+
+bioreportr.tip.heading = text => `<div class="mxcw-tip-heading">${text}</div>`;
+
+/**
+ * Render a list of labelled values as bars, each in proportion to the largest.
+ * @param {Array[]} entries - Each entry's label, its value and optionally the text shown for its value
+ * @return {String} The markup of the bars
+ */
+bioreportr.tip.bars = function (entries) {
+    const encode = hortis.dataTable.encode;
+    const max = Math.max(1, ...entries.map(([, value]) => value));
+    return `<div class="mxcw-tip-bars">${entries.map(([label, value, text]) => `
+        <span class="mxcw-tip-label" title="${encode(label)}">${encode(label)}</span>
+        <span class="mxcw-tip-track"><span class="mxcw-tip-bar" style="width:${value / max * 100}%"></span></span>
+        <span class="mxcw-tip-value">${text || bioreportr.formatCount(value)}</span>`).join("")}</div>`;
+};
+
+// The reporting statuses, in the order in which a cell's summary shows them, with the labels of its key
+bioreportr.cellTooltip.statuses = [["unconfirmed", "Historical"], ["new", "Newly reported"], ["confirmed", "Confirmed"]];
+
+bioreportr.cellTooltip.plural = (count, noun) => `${bioreportr.formatCount(count)} ${noun}${count === 1 ? "" : "s"}`;
+
+bioreportr.cellTooltip.section = (heading, status, body) =>
+    `<div class="mxcw-cell-section" style="--tip-colour:${bioreportr.statusColours[status]}">${bioreportr.tip.heading(heading)}${body}</div>`;
+
+/**
+ * Find the earliest record of each taxon across the whole atlas, whatever filters are applied.
+ * @param {Object[]} obsRows - All records
+ * @return {Map<String, Object>} The earliest record of each taxon id
+ */
+bioreportr.cellTooltip.earliestRecords = function (obsRows) {
+    const earliest = new Map();
+    obsRows.forEach(record => {
+        const current = earliest.get(record.iNaturalistTaxonId);
+        if (record.eventDate && (!current || record.eventDate < current.eventDate)) {
+            earliest.set(record.iNaturalistTaxonId, record);
+        }
+    });
+    return earliest;
+};
+
+/**
+ * Render the summary of a cell of the map's grid, leading with what matters most to the search for lost plants: the
+ * historical species recorded there, highest extirpation probability first, followed by what has newly been found
+ * there and what is well documented, together with a bar of the cell's species by reporting status.
+ * @param {Object} grid - The grid of records, whose buckets index the records gridded
+ * @param {Object<String, TaxonRow>} rowById - Taxon rows indexed by id
+ * @param {Object[]} gridRows - The records gridded, which the grid's buckets index
+ * @param {Map<String, Object>} earliest - The earliest record of each taxon across the atlas
+ * @param {Object<String, String>} headings - The headings of the sections, by reporting status
+ * @param {String} cellId - The id of the cell
+ * @return {String|null} The markup for the summary, or null if the cell holds no records
+ */
+bioreportr.cellTooltip.render = function (grid, rowById, gridRows, earliest, headings, cellId) {
+    const bucket = grid.buckets[cellId];
+    let togo = null;
+    if (bucket) {
+        const encode = hortis.dataTable.encode;
+        const plants = Object.entries(bucket.byTaxonId).filter(([taxonId]) => rowById[taxonId]).map(([taxonId, obsIndices]) => {
+            const records = obsIndices.map(index => gridRows[index]).filter(record => record?.eventDate).sort(bioreportr.obsDateComparator);
+            return {taxon: rowById[taxonId], count: obsIndices.length, first: records[0], last: fluid.peek(records)};
+        });
+        const inStatus = status => plants.filter(plant => plant.taxon.reportingStatus === status);
+        const name = plant => plant.taxon.scientificName || plant.taxon.iNaturalistTaxonName;
+        const more = (list, shown) => list.length > shown ? `<div class="mxcw-tip-note">and ${list.length - shown} more</div>` : "";
+        const recorder = plant => (plant.last?.recordedBy || "").split(";")[0].trim();
+
+        const segments = bioreportr.cellTooltip.statuses.map(([status, label]) => ({status, label, count: inStatus(status).length})).filter(segment => segment.count > 0);
+        const colour = segment => bioreportr.statusColours[segment.status];
+        const bars = segments.map(segment => `<span style="flex:${segment.count};background:${colour(segment)}"></span>`).join("");
+        const keys = segments.map(segment => `<span><i style="background:${colour(segment)}"></i>${segment.label} ${segment.count}</span>`).join("");
+        const stack = `<div class="mxcw-cell-stack">${bars}</div><div class="mxcw-cell-key">${keys}</div>`;
+
+        const historical = inStatus("unconfirmed").sort((a, b) => (+b.taxon.solow_EP || 0) - (+a.taxon.solow_EP || 0));
+        // A newly reported species is identified by its earliest record anywhere, not by whatever was last seen in this cell
+        const fresh = inStatus("new").map(plant => ({...plant, earliest: earliest.get(plant.taxon.id)})).filter(plant => plant.earliest)
+            .sort((a, b) => b.earliest.eventDate.localeCompare(a.earliest.eventDate));
+        const confirmed = inStatus("confirmed").sort((a, b) => b.count - a.count);
+
+        const sections = [
+            historical.length && bioreportr.cellTooltip.section(headings.unconfirmed, "unconfirmed",
+                bioreportr.tip.bars(historical.slice(0, 4).map(plant => [name(plant), plant.count,
+                    `${plant.count} · ${plant.last ? bioreportr.year(plant.last.eventDate) : "?"}`])) + more(historical, 4)),
+            fresh.length && bioreportr.cellTooltip.section(headings.new, "new",
+                `<ul class="mxcw-tip-list">${fresh.slice(0, 3).map(plant => `<li><i>${encode(name(plant))}</i> ${bioreportr.year(plant.earliest.eventDate)}${recorder(plant) ? ", " + encode(recorder(plant)) : ""}${plant.first?.eventDate === plant.earliest.eventDate ? " (here)" : ""}</li>`).join("")}</ul>` + more(fresh, 3)),
+            confirmed.length && bioreportr.cellTooltip.section(headings.confirmed, "confirmed",
+                bioreportr.tip.bars(confirmed.slice(0, 3).map(plant => [name(plant), plant.count])) + more(confirmed, 3))
+        ].filter(Boolean).join("");
+
+        togo = `<div class="mxcw-cell-tip">
+            <div class="mxcw-tip-title">${bioreportr.formatCount(plants.length)} species <span>${bioreportr.cellTooltip.plural(bucket.obsCount, "record")}</span></div>
+            ${stack}${sections}
+        </div>`;
+    }
+    return togo;
+};
+
 /** iNaturalist panels **/
 
 fluid.registerNamespace("bioreportr.iNatPanel");
 
-// The options of an iNaturalist panel, as rendered by @imerss/inat-components, which a pane's settings refine - ported
-// from bioreportr.iNatComponentsPaneHandler in paneHandlers.js
+// The options of an iNaturalist panel, as rendered by @imerss/inat-components, which a pane's settings refine
 bioreportr.iNatPanel.defaults = {
     dataSource: "autoLoad",
     itemWidth: 180,
@@ -2106,8 +2218,8 @@ bioreportr.storyMap.untrackSize = function (observer) {
 };
 
 }).call(globalThis);
-//# sourceURL=../bioreportr/js/i6/story.js</script>
-    <script data-fluid-indent="4" data-fluid-hydrated="" fluid-src="../bioreportr/js/i6/solow.js" id="fl-script-bioreportr.storyPage-8">(function () {/*
+//# sourceURL=../bioreportr/js/story.js</script>
+    <script data-fluid-indent="4" data-fluid-hydrated="" fluid-src="../bioreportr/js/solow.js" id="fl-script-bioreportr.storyPage-8">(function () {/*
 Copyright 2025-2026 Antranig Basman
 Licensed under the Educational Community License (ECL), Version 2.0 or the New
 BSD license. You may not use this file except in compliance with one these
@@ -2118,8 +2230,7 @@ https://github.com/fluid-project/infusion/raw/master/Infusion-LICENSE.txt
 
 "use strict";
 
-// The extirpation risk analysis of a story page, ported to Infusion 6 from solowControls.js of howe-sound-mapping-2026.
-// The observations of a taxon chosen from a table of taxa are clustered into populations, those within a chosen
+// The extirpation risk analysis of a story page. The observations of a taxon chosen from a table of taxa are clustered into populations, those within a chosen
 // radius of each other, and the probability that each population has been extirpated is estimated from the dates of
 // its observations by the method of Solow (1993), as shown by a layer of the map.
 
@@ -2516,7 +2627,7 @@ fluid.def("bioreportr.solowMapLayer", {
 });
 
 }).call(globalThis);
-//# sourceURL=../bioreportr/js/i6/solow.js</script>
+//# sourceURL=../bioreportr/js/solow.js</script>
     <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyPage-9">(function () {
 "use strict";
 
@@ -2676,11 +2787,19 @@ fluid.def("bioreportr.storyPage", {
     // The buttons beside the tables of records clearing the record selected in them, disabled whilst there is none
     noRecordSelected: "$compute:bioreportr.storyPage.noRecordSelected({self}.map.recordSelector.filterState)",
     resetRecord: "$method:hortis.libreMap.recordSelector.reset({self}.map.recordSelector)",
-    // Shows the title of any element of the page in a tooltip, as jQuery UI's tooltip widget did in Infusion 4
+    // Shows the title of any element of the page in a styled tooltip of its own, in place of the browser's
     titleTooltips: {
         $component: {
             $layers: "hortis.titleTooltips"
         }
+    },
+    // The earliest record of each taxon, and the headings of the sections of the summary of a map cell, by reporting
+    // status - see bioreportr.cellTooltip
+    earliestRecords: "$compute:bioreportr.cellTooltip.earliestRecords({self}.obsRows)",
+    cellTooltipHeadings: {
+        unconfirmed: "Historical species recorded here: records, and year last seen",
+        new: "Newly reported species here: earliest record in this atlas",
+        confirmed: "Most recorded confirmed species"
     },
     // The panel of records beneath the map opens and closes as an accordion, its header naming the filters narrowing it
     recordsCollapsed: true,
@@ -2849,7 +2968,6 @@ bioreportr.storyPage.toggle = function (that, member) {
     <link data-fluid-indent="4" data-fluid-hydrated="" id="fl-style-bioreportr.storyPage-0" href="https://cdn.materialdesignicons.com/2.0.46/css/materialdesignicons.min.css" rel="stylesheet">
     <link data-fluid-indent="4" data-fluid-hydrated="" id="fl-style-bioreportr.storyPage-1" href="../vendor/imerss-bioinfo/src/client/css/imerss-core.css" rel="stylesheet">
     <link data-fluid-indent="4" data-fluid-hydrated="" id="fl-style-bioreportr.storyPage-2" href="../vendor/imerss-bioinfo/src/client/css/imerss-i6.css" rel="stylesheet">
-    <link data-fluid-indent="4" data-fluid-hydrated="" id="fl-style-bioreportr.storyPage-3" href="../bioreportr/css/imerss-story-i6.css" rel="stylesheet">
     <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-hortis.resizeBar-0">(function () {
 "use strict";
 
@@ -3253,7 +3371,10 @@ fluid.def("bioreportr.solowTaxonInfo", {
 // The slider choosing the radius within which observations of a taxon belong to the same population
 fluid.def("bioreportr.solowRadius", {
     $layers: ["fluid.sfcLayer","fluid.component"],
+    // The index of the default radius among the snap values, which a story may override along with selectedIndex
+    defaultIndex: 4,
     selectedIndex: 4,
+    defaultRadius: "$compute:bioreportr.solowRadius.indexToRadius({self}.defaultIndex)",
     radius: "$compute:bioreportr.solowRadius.indexToRadius({self}.selectedIndex)",
     display: "$compute:bioreportr.solowRadius.display({self}.selectedIndex)",
     ticks: {
@@ -3650,14 +3771,19 @@ fluid.def("bioreportr.sectionTab", {
 
 }).call(globalThis);
 //# sourceURL=../bioreportr/sfc/bioreportr-sectionTab.vue</script>
-    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyPane-0" fluid-client="" fluid-src="../bioreportr/js/plotly-2.1.1.js" src="../bioreportr/js/plotly-2.1.1.js"></script>
-    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyPane-1" fluid-client="" fluid-src="../bioreportr/js/htmlwidgets.js" src="../bioreportr/js/htmlwidgets.js"></script>
-    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyPane-2" fluid-client="" fluid-src="../bioreportr/js/htmlwidgets-plotly.js" src="../bioreportr/js/htmlwidgets-plotly.js"></script>
+    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyPane-0" fluid-client="" fluid-src="../bioreportr/vendor/plotly-2.1.1.js" src="../bioreportr/vendor/plotly-2.1.1.js"></script>
+    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyPane-1" fluid-client="" fluid-src="../bioreportr/vendor/htmlwidgets.js" src="../bioreportr/vendor/htmlwidgets.js"></script>
+    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyPane-2" fluid-client="" fluid-src="../bioreportr/vendor/htmlwidgets-plotly.js" src="../bioreportr/vendor/htmlwidgets-plotly.js"></script>
     <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyPane-5">(function () {
 "use strict";
 
-// One pane of the story page, whose section, knitted from R Markdown and extracted by storyBuild.js, is fetched and
-// rendered verbatim. Only the active pane is shown. Its HTML widgets, e.g. plotly charts, are rendered in the browser
+// One pane of the story page, whose section is knitted from R Markdown and extracted by storyBuild.js. Only the active
+// pane is shown. Its HTML widgets, e.g. plotly charts, are rendered in the browser. The section is rendered in one of
+// two ways:
+//   - by default, it is fetched from the file storyBuild.js writes for the pane, and rendered verbatim
+//   - if the pane's front matter names a `paneComponent`, the section is rendered by that component, defined in a
+//     Single File Component into whose <template> block storyBuild.js has written the section - so that the template
+//     may bind to the component's members, and the component may bring the script and styles particular to its pane
 fluid.def("bioreportr.storyPane", {
     $layers: ["fluid.sfcLayer","fluid.component"],
     // pane: PaneSettings - the pane's settings, as the $for iteration variable
@@ -3667,8 +3793,8 @@ fluid.def("bioreportr.storyPane", {
     paneClick: "$method:bioreportr.storyPane.click({storyPage}, {0}:event)",
     section: {
         $component: {
-            $layers: "hortis.verbatimSlot",
-            markup: "$compute:bioreportr.storyPane.insert({storyPane}.fetched, {storyPage}.sectionInserts)"
+            $layers: ["fluid.component", "{self}.sectionLayers"],
+            sectionLayers: "$compute:bioreportr.storyPane.sectionLayers({storyPane}.pane)"
         }
     },
     widgets: {
@@ -3679,6 +3805,13 @@ fluid.def("bioreportr.storyPane", {
     },
     view: {"$component":{    $layers: ["fluid.sfcTemplateViewComponent"],
 "template":{"sfcLayer":"bioreportr.storyPane"}}}
+});
+
+// The section of a pane rendered verbatim, as fetched from the file storyBuild.js writes for it, with any of the story
+// page's sectionInserts placed within it. A pane rendered by a component of its own fetches nothing
+fluid.def("bioreportr.verbatimSection", {
+    $layers: "hortis.verbatimSlot",
+    markup: "$compute:bioreportr.storyPane.insert({storyPane}.fetched, {storyPage}.sectionInserts)"
 });
 
 }).call(globalThis);
@@ -4451,7 +4584,7 @@ fluid.def("hortis.libreMap", {
     clickDispatch: {
         $bindable: {
             bind: "hortis.libreMap.bindClick({self}, {self}.map)",
-            unbind: "hortis.libreMap.untrack({boundValue})"
+            unbind: "hortis.libreMap.unbindClick({boundValue})"
         }
     },
     sortLayers: "$method:hortis.libreMap.sortLayers({0}:map)"
@@ -4537,22 +4670,55 @@ hortis.libreMap.untrack = function (record) {
     record.map.off(record.event, record.listener);
 };
 
+// How long in milliseconds after an area is drawn a click still belongs to the drawing, as the double click which ends a
+// shape arrives as several clicks
+hortis.libreMap.drawClickGrace = 500;
+
 /**
- * Dispatch clicks on a map to the click handlers currently registered with a map component.
+ * Dispatch clicks on a map to the click handlers currently registered with a map component - except those made while an
+ * area is being drawn, e.g. by hortis.libreMap.withPolygonDraw, which are left to the drawing tool. Otherwise each would
+ * select the map cell beneath it, narrowing the drawn area to that single cell. Any cell already selected is released
+ * when drawing starts, for the same reason.
  * @param {hortis.libreMap} that - The map component
  * @param {maplibregl.Map} map - The map
- * @return {Object} A record of the listener for `hortis.libreMap.untrack`
+ * @return {Object} A record of the listeners, to be supplied to `hortis.libreMap.unbindClick`
  */
 hortis.libreMap.bindClick = function (that, map) {
-    const listener = e => {
-        const handlers = that.clickHandlers;
-        const handled = handlers.find(handler => handler.handle(e));
-        if (!handled) {
-            handlers.forEach(handler => handler.resetSelection());
+    // Times are those of the window's performance clock, which also stamps each event as the browser creates it - a click
+    // ending a drawing may only be handled once the page has recomputed everything the drawn area filters, by when far
+    // longer than the grace may have passed
+    const performance = map.getContainer().ownerDocument.defaultView.performance;
+    const record = {map, drawing: false, drawingEnded: -Infinity};
+    record.modechange = ({mode}) => {
+        // Only while a shape is being drawn: clicking inside a finished shape puts the tool in its editing mode, where cells
+        // must still respond
+        const nowDrawing = mode.startsWith("draw_");
+        if (nowDrawing && !record.drawing) {
+            that.gridSelector?.reset();
+        }
+        if (record.drawing && !nowDrawing) {
+            record.drawingEnded = performance.now();
+        }
+        record.drawing = nowDrawing;
+    };
+    record.click = e => {
+        const clicked = e.originalEvent?.timeStamp ?? performance.now();
+        if (!record.drawing && clicked - record.drawingEnded > hortis.libreMap.drawClickGrace) {
+            const handlers = that.clickHandlers;
+            const handled = handlers.find(handler => handler.handle(e));
+            if (!handled) {
+                handlers.forEach(handler => handler.resetSelection());
+            }
         }
     };
-    map.on("click", listener);
-    return {map, event: "click", listener};
+    map.on("draw.modechange", record.modechange);
+    map.on("click", record.click);
+    return record;
+};
+
+hortis.libreMap.unbindClick = function (record) {
+    record.map.off("draw.modechange", record.modechange);
+    record.map.off("click", record.click);
 };
 
 // A component which handles clicks on a map, found by hortis.libreMap
@@ -5073,7 +5239,9 @@ hortis.libreMap.fitBounds = function (map, bounds, zoomToObsBounds, zoomDuration
 };
 
 /**
- * Resolves a map event to a property value of the topmost visible feature at the event's point.
+ * Resolves a map event to a property value of the topmost visible feature at the event's point - looking through any area
+ * drawn by MapboxDraw, whose layers are named "gl-draw-...", so that the map cells inside it can still be hovered over and
+ * selected.
  * @param {maplibregl.Map} map - The MapLibre map instance.
  * @param {MapMouseEvent} e - A map mouse event containing a `point` property.
  * @param {String} propName - The name of the property to dereference
@@ -5081,9 +5249,8 @@ hortis.libreMap.fitBounds = function (map, bounds, zoomToObsBounds, zoomDuration
  */
 hortis.libreMap.eventToProp = function (map, e, propName) {
     const features = map.queryRenderedFeatures(e.point);
-    const visibleFeatures = features.filter(feature =>
-        feature.layer.paint["fill-opacity"] > 0 ||
-        feature.layer.paint["circle-opacity"] > 0);
+    const visibleFeatures = features.filter(feature => !feature.layer.id.startsWith("gl-draw-") &&
+        (feature.layer.paint["fill-opacity"] > 0 || feature.layer.paint["circle-opacity"] > 0));
     return visibleFeatures[0]?.properties[propName] ?? null;
 };
 
@@ -5728,8 +5895,19 @@ hortis.libreMap.polygonFilter.summarise = function (filterState) {
     return hortis.countSummary(filterState.length, ["polygon", "polygons"]);
 };
 
+/**
+ * Filter observations to those lying within any of the polygons drawn. The polygons arrive as component material, read
+ * through a proxy which tracks each access - since every observation is tested against every vertex of the polygons,
+ * their bare values are read instead, which is many times faster.
+ * @param {Object[]} obsRows - The observations
+ * @param {Object[]} filterState - The polygons drawn, as GeoJSON features, possibly as a proxy
+ * @param {Map<Object, Object>} pointCache - Map of each observation to its point, possibly as a proxy
+ * @return {Object[]} The observations within any of the polygons
+ */
 hortis.libreMap.polygonFilter.doFilter = function (obsRows, filterState, pointCache) {
-    return filterState.length === 0 ? obsRows : obsRows.filter(row => hortis.intersectsAnyFeature(filterState, pointCache.get(row)));
+    const features = fluid.unwrapProxy(filterState);
+    const points = fluid.unwrapProxy(pointCache);
+    return features.length === 0 ? obsRows : obsRows.filter(row => hortis.intersectsAnyFeature(features, points.get(row)));
 };
 
 hortis.libreMap.polygonFilter.reset = function (that) {
@@ -5760,7 +5938,18 @@ hortis.libreMap.polygonFilter.makeDraw = function (that, map, mapboxDrawOptions,
         const modeChange = e => that.drawMode = e.mode;
         const listeners = {"draw.create": updateArea, "draw.delete": updateArea, "draw.update": updateArea, "draw.modechange": modeChange};
         Object.entries(listeners).forEach(([event, listener]) => map.on(event, listener));
-        togo = {map, draw, listeners};
+        // MapboxDraw's trash deletes only the polygons selected, and polygons restored from the URL are drawn unselected
+        // - so with none selected, the trash deletes them all. Heard before MapboxDraw's own handler, while the
+        // selection is still as the user left it
+        const trashButton = map.getContainer().querySelector(".mapbox-gl-draw_trash");
+        const trashAll = () => {
+            if (draw.getSelectedIds().length === 0 && draw.getAll().features.length > 0) {
+                draw.deleteAll();
+                updateArea();
+            }
+        };
+        trashButton?.addEventListener("click", trashAll, true);
+        togo = {map, draw, listeners, trashButton, trashAll};
     } else {
         togo = fluid.unavailable({message: "The MapboxDraw library is not loaded", variety: "config"});
     }
@@ -5769,6 +5958,7 @@ hortis.libreMap.polygonFilter.makeDraw = function (that, map, mapboxDrawOptions,
 
 hortis.libreMap.polygonFilter.removeDraw = function (record) {
     Object.entries(record.listeners).forEach(([event, listener]) => record.map.off(event, listener));
+    record.trashButton?.removeEventListener("click", record.trashAll, true);
     record.map.removeControl(record.draw);
 };
 
@@ -5844,9 +6034,11 @@ fluid.def("bioreportr.storyMap", {
     gridResolution: "{storyPage}.gridResolution",
     gridVisible: "{storyPage}.activePane.visibleGrid",
     maxObsCountOverride: "{storyPage}.activePane.maxObsCountOverride",
+    // A summary of a map cell, by the reporting status of its species - see bioreportr.cellTooltip
     gridSelector: {
         $component: {
-            renderTooltip: "$method:hortis.renderVizGridTooltip({libreMap}.obsQuantiser.grid, {vizLoader}.taxa.rowById, {0}:cellId)"
+            renderTooltip: `$method:bioreportr.cellTooltip.render({libreMap}.obsQuantiser.grid, {vizLoader}.taxa.rowById,
+                {vizLoader}.finalFilteredObs, {storyPage}.earliestRecords, {storyPage}.cellTooltipHeadings, {0}:cellId)`
         }
     },
     showPane: "$effect:bioreportr.storyMap.showPane({self}, {self}.readyMap, {storyPage}.mapData, {storyPage}.activePaneKey)",
@@ -6639,13 +6831,19 @@ hortis.taxonSearchFilter.select = function (that, id, dokkument) {
  * Filter observations to those of a taxon, or of any taxon beneath it.
  * @param {Object[]} obsRows - The observations
  * @param {TaxonRow|null} filterState - The chosen taxon, or null if none is chosen
- * @param {Object<String, TaxonRow>} rowById - Map of taxon id to indexed taxon row
+ * The taxa arrive as component material, read through a proxy which tracks each access - since the filter visits
+ * every observation and climbs the taxonomy for each, the bare values are read instead, which is many times faster.
+ * @param {Object[]} obsRows - The observations
+ * @param {TaxonRow|null} filterState - The chosen taxon, or null if none is chosen
+ * @param {Object<String, TaxonRow>} rowById - Map of taxon id to indexed taxon row, possibly as a proxy
  * @return {Object[]} The observations surviving the filter
  */
 hortis.taxonSearchFilter.doFilter = function (obsRows, filterState, rowById) {
+    const bareRowById = fluid.unwrapProxy(rowById);
+    const filterId = filterState?.id;
     const includeRow = function (obsRow) {
-        let taxonRow = rowById[obsRow.iNaturalistTaxonId];
-        while (taxonRow && taxonRow.id !== filterState.id) {
+        let taxonRow = bareRowById[obsRow.iNaturalistTaxonId];
+        while (taxonRow && taxonRow.id !== filterId) {
             taxonRow = taxonRow.parent;
         }
         return !!taxonRow;
@@ -6889,16 +7087,12 @@ et al., 2025</a></p>
   </g>
 </svg>
 </div></div></div>
-</div></div></div></div></div><div aria-orientation="horizontal" class="resize-bar resize-bar--vertical" aria-label="Resize panels" tabindex="0" role="separator"></div><div data-mxcw-startup-hidden=""><div class="imerss-filters-collapsed"><div class="imerss-panel-label imerss-filters-header"><button aria-expanded="true" aria-controls="imerss-main-filters" type="button" class="imerss-filters-toggle">Filters:</button><div class="imerss-filter-controls"><svg height="24" width="24" class="imerss-reset-filter"><title>Reset all filters</title><use href="#imerss-i-filter-reset" /></svg><div></div></div></div><div id="imerss-main-filters"><div class="imerss-filter"></div><div class="imerss-status-filter imerss-filter"><div class="imerss-filter-title">Status:</div><div class="imerss-filter-body imerss-region-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="confirmed" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">confirmed</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="unconfirmed" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">historical</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="new" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">new</div></div></div></div><div class="imerss-collector-filter imerss-filter"><label for="fli-imerss-collector" class="imerss-filter-title">Recorder:</label><div class="imerss-filter-body imerss-filter-autocomplete"><div></div><div class="imerss-filter-clear imerss-basic-tooltip fl-hidden" title="Reset this filter"><svg height="24" width="24"><use href="#imerss-i-x-circle-close" /></svg></div></div></div></div><div class="imerss-reporter imerss-record-reporter"><p>Displaying <b>8</b> of <span>8</span> records for <span>1</span> taxa</p></div><div class="imerss-main-checklist imerss-checklist-holder"><div class="imerss-panel-label"><span>Plants</span><span title="Download checklist as CSV" class="imerss-download-button imerss-basic-tooltip"><svg height="24" width="24"><use href="#imerss-i-download-wide" /></svg></span><span class="imerss-search-checklist"><span class="imerss-filter-autocomplete"><div></div><div class="imerss-filter-clear imerss-basic-tooltip fl-hidden" title="Reset this filter"><svg height="24" width="24"><use href="#imerss-i-x-circle-close" /></svg></div></span><svg height="32" width="32"><use href="#imerss-i-search-wide" /></svg></span></div><div class="imerss-checklist"><ul><li class="checklist-row checklist-rank-family"><span data-row-id="47562" class="pretty p-icon checklist-fold-control"><span class="state"><i class="icon mdi mdi-none"></i><label></label></span></span><p data-row-id="47562" class="checklist-scientific-name">Pinaceae</p> - <p data-row-id="47562" class="checklist-common-name">pine family</p><ul><li class="checklist-row checklist-rank-genus"><span data-row-id="54262" class="pretty p-icon checklist-fold-control active"><span class="state"><i class="icon mdi mdi-chevron-down"></i><label></label></span></span><p data-row-id="54262" class="checklist-scientific-name">Abies</p> - <p data-row-id="54262" class="checklist-common-name">firs</p><ul><li class="checklist-row checklist-rank-species"><span data-row-id="75240" class="pretty p-icon checklist-fold-control"><span class="state"><i class="icon mdi mdi-none"></i><label></label></span></span><svg height="18" width="18" class="imerss-checklist-decoration"><title>Confirmed: This historical record has been confirmed by a project contributor</title><use href="#tick" /></svg><p data-row-id="75240" class="checklist-scientific-name">Abies amabilis</p> - <p data-row-id="75240" class="checklist-common-name">Pacific silver fir</p></li></ul></li></ul></li></ul></div></div></div><div class="mxcw-solow-taxa-holder"><div class="mxcw-taxa-filters-holder imerss-filters-collapsed"><div class="imerss-panel-label imerss-filters-header"><button aria-expanded="true" type="button" class="imerss-filters-toggle">Filters:</button><div class="imerss-filter-controls"><svg height="24" width="24" class="imerss-reset-filter"><title>Reset all filters</title><use href="#imerss-i-filter-reset" /></svg><div></div></div></div><div class="imerss-filters imerss-taxa-filters"><div class="imerss-ep-filter imerss-filter imerss-ep-filter-body"><div class="imerss-filter-title">Extirpation probability (EP):</div><div class="imerss-filter-body mxcw-ep-range"><label><span>Min</span><input value="0" aria-label="Minimum extirpation probability" step="5" max="100" min="0" type="range" class="mxcw-ep-min"><output>0.00</output></label><label><span>Max</span><input value="100" aria-label="Maximum extirpation probability" step="5" max="100" min="0" type="range" class="mxcw-ep-max"><output>1.00</output></label></div></div><div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Infrataxon Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">infrataxon</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">non-infrataxon</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Introduction Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">native</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">exotic</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">unknown</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Provenance Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">voucher</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">no_voucher</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">unknown</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Conservation Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">concern</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">secure</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Graminoid status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">graminoid</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">non-graminoid</div></div></div></div></div></div></div><div class="hortis-dataTable-wrap"><div class="hortis-dataTable-scroll"><table><thead><tr><th class="hortis-dataTable-select-cell"></th><th><div class="hortis-dataTable-sort-wrap">Taxon name<button aria-label="Sort by Taxon name" data-key="scientificName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">EP<button aria-label="Sort by EP" data-key="solow_EP" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sort-descending" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Infrataxon Status<button aria-label="Sort by Infrataxon Status" data-key="infrataxon_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Introduction<button aria-label="Sort by Introduction" data-key="introduction_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Has Voucher<button aria-label="Sort by Has Voucher" data-key="provenance_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Conservation Status<button aria-label="Sort by Conservation Status" data-key="provincial_concern" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Common Name<button aria-label="Sort by Common Name" data-key="commonName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Reporting status<button aria-label="Sort by Reporting status" data-key="reportingStatus" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">ID<button aria-label="Sort by ID" data-key="id" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Link name<button aria-label="Sort by Link name" data-key="iNaturalistTaxonName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th></tr></thead><tbody><tr data-row-index="0" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="0" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td>0.0</td><td>non-infrataxon</td><td>native</td><td>voucher</td><td>secure</td><td>Pacific silver fir</td><td>confirmed</td><td>75240</td><td>Abies amabilis</td></tr></tbody></table></div><div class="hortis-dataTable-pagination"><span class="hortis-dataTable-pageInfo">1–1 of 1</span><div class="hortis-dataTable-pageControls"><button disabled data-move="start">Start</button><button disabled data-move="prev">← Prev</button><button disabled data-move="next">Next →</button><button disabled data-move="end">End</button></div></div></div></div></div></div></div></div></div>
+</div></div></div></div></div><div aria-orientation="horizontal" class="resize-bar resize-bar--vertical" aria-label="Resize panels" tabindex="0" role="separator"></div><div data-mxcw-startup-hidden=""><div class="imerss-filters-collapsed"><div class="imerss-panel-label imerss-filters-header"><button aria-expanded="true" aria-controls="imerss-main-filters" type="button" class="imerss-filters-toggle">Filters:</button><div class="imerss-filter-controls"><svg height="24" width="24" class="imerss-reset-filter"><title>Reset all filters</title><use href="#imerss-i-filter-reset" /></svg><div></div></div></div><div id="imerss-main-filters"><div class="imerss-filter"></div><div class="imerss-status-filter imerss-filter"><div class="imerss-filter-title">Status:</div><div class="imerss-filter-body imerss-region-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="confirmed" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">confirmed</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="unconfirmed" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">historical</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="new" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">new</div></div></div></div><div class="imerss-collector-filter imerss-filter"><label for="fli-imerss-collector" class="imerss-filter-title">Recorder:</label><div class="imerss-filter-body imerss-filter-autocomplete"><div></div><div class="imerss-filter-clear imerss-basic-tooltip fl-hidden" title="Reset this filter"><svg height="24" width="24"><use href="#imerss-i-x-circle-close" /></svg></div></div></div><div class="imerss-locality-filter imerss-filter"></div><div class="imerss-time-filter imerss-filter"></div></div><div class="imerss-reporter imerss-record-reporter"><p>Displaying <b>8</b> of <span>8</span> records for <span>1</span> taxa</p></div><div class="imerss-main-checklist imerss-checklist-holder"><div class="imerss-panel-label"><span>Plants</span><span title="Download checklist as CSV" class="imerss-download-button imerss-basic-tooltip"><svg height="24" width="24"><use href="#imerss-i-download-wide" /></svg></span><span class="imerss-search-checklist"><span class="imerss-filter-autocomplete"><div></div><div class="imerss-filter-clear imerss-basic-tooltip fl-hidden" title="Reset this filter"><svg height="24" width="24"><use href="#imerss-i-x-circle-close" /></svg></div></span><svg height="32" width="32"><use href="#imerss-i-search-wide" /></svg></span></div><div class="imerss-checklist"><ul><li class="checklist-row checklist-rank-family"><span data-row-id="47562" class="pretty p-icon checklist-fold-control"><span class="state"><i class="icon mdi mdi-none"></i><label></label></span></span><p data-row-id="47562" class="checklist-scientific-name">Pinaceae</p> - <p data-row-id="47562" class="checklist-common-name">pine family</p><ul><li class="checklist-row checklist-rank-genus"><span data-row-id="54262" class="pretty p-icon checklist-fold-control active"><span class="state"><i class="icon mdi mdi-chevron-down"></i><label></label></span></span><p data-row-id="54262" class="checklist-scientific-name">Abies</p> - <p data-row-id="54262" class="checklist-common-name">firs</p><ul><li class="checklist-row checklist-rank-species"><span data-row-id="75240" class="pretty p-icon checklist-fold-control"><span class="state"><i class="icon mdi mdi-none"></i><label></label></span></span><svg height="18" width="18" class="imerss-checklist-decoration"><title>Confirmed: This historical record has been confirmed by a project contributor</title><use href="#tick" /></svg><p data-row-id="75240" class="checklist-scientific-name">Abies amabilis</p> - <p data-row-id="75240" class="checklist-common-name">Pacific silver fir</p></li></ul></li></ul></li></ul></div></div></div><div class="mxcw-solow-taxa-holder"><div class="mxcw-taxa-filters-holder imerss-filters-collapsed"><div class="imerss-panel-label imerss-filters-header"><button aria-expanded="true" type="button" class="imerss-filters-toggle">Filters:</button><div class="imerss-filter-controls"><svg height="24" width="24" class="imerss-reset-filter"><title>Reset all filters</title><use href="#imerss-i-filter-reset" /></svg><div></div></div></div><div class="imerss-filters imerss-taxa-filters"><div class="imerss-ep-filter imerss-filter imerss-ep-filter-body"><div class="imerss-filter-title">Extirpation probability (EP):</div><div class="imerss-filter-body mxcw-ep-range"><label><span>Min</span><input value="0" aria-label="Minimum extirpation probability" step="5" max="100" min="0" type="range" class="mxcw-ep-min"><output>0.00</output></label><label><span>Max</span><input value="100" aria-label="Maximum extirpation probability" step="5" max="100" min="0" type="range" class="mxcw-ep-max"><output>1.00</output></label></div></div><div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Infrataxon Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">infrataxon</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">non-infrataxon</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Introduction Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">native</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">exotic</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">unknown</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Provenance Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">voucher</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">no_voucher</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">unknown</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Conservation Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">concern</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">secure</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Graminoid status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">graminoid</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">non-graminoid</div></div></div></div></div></div></div><div class="hortis-dataTable-wrap"><div class="hortis-dataTable-scroll"><table><thead><tr><th class="hortis-dataTable-select-cell"></th><th><div class="hortis-dataTable-sort-wrap">Taxon name<button aria-label="Sort by Taxon name" data-key="scientificName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">EP<button aria-label="Sort by EP" data-key="solow_EP" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sort-descending" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Infrataxon Status<button aria-label="Sort by Infrataxon Status" data-key="infrataxon_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Introduction<button aria-label="Sort by Introduction" data-key="introduction_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Has Voucher<button aria-label="Sort by Has Voucher" data-key="provenance_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Conservation Status<button aria-label="Sort by Conservation Status" data-key="provincial_concern" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Common Name<button aria-label="Sort by Common Name" data-key="commonName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Reporting status<button aria-label="Sort by Reporting status" data-key="reportingStatus" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">ID<button aria-label="Sort by ID" data-key="id" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Link name<button aria-label="Sort by Link name" data-key="iNaturalistTaxonName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th></tr></thead><tbody><tr data-row-index="0" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="0" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td>0.0</td><td>non-infrataxon</td><td>native</td><td>voucher</td><td>secure</td><td>Pacific silver fir</td><td>confirmed</td><td>75240</td><td>Abies amabilis</td></tr></tbody></table></div><div class="hortis-dataTable-pagination"><span class="hortis-dataTable-pageInfo">1–1 of 1</span><div class="hortis-dataTable-pageControls"><button disabled data-move="start">Start</button><button disabled data-move="prev">← Prev</button><button disabled data-move="next">Next →</button><button disabled data-move="end">End</button></div></div></div></div></div></div></div></div></div>
       <footer class="hextra-footer hx-bg-gray-100 hx-pb-[env(safe-area-inset-bottom)] dark:hx-bg-neutral-900 print:hx-bg-transparent"><div class="hextra-custom-footer hx-max-w-screen-xl hx-pl-[max(env(safe-area-inset-left),1.5rem)] hx-pr-[max(env(safe-area-inset-right),1.5rem)] hx-text-gray-600 dark:hx-text-gray-400"></div><div class="imerss-copyright">
         IMERSS · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>
       </div></footer>
     
-    <script defer src="../js/main.min.c2b59c43dd62b497c2528f19bcb3dc9ad0a78e166e16c9415a52a2d6653af6a3.js" integrity="sha256-wrWcQ91itJfCUo8ZvLPcmtCnjhZuFslBWlKi1mU69qM="></script>
-
-
-
-
+    <script defer src="../bioreportr/hextra/js/main.js"></script>
 
   </body>
 </html>
