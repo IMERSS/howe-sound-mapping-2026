@@ -7,7 +7,7 @@ based on [R Markdown](https://rmarkdown.rstudio.com/).
 You can browse the published output of this project in these documents:
 
 * [Sample Raw Knitted Output from R Markdown](https://imerss.github.io/howe-sound-mapping-2026/story/Protected.html)
-* [Raw Output Reknitted into Storymapping Interface](https://imerss.github.io/howe-sound-mapping-2026/story/#pane:Protected)
+* [Storymapping Interface](https://imerss.github.io/howe-sound-mapping-2026/story/#pane:Protected)
 
 The project's publishing pipeline is based on the [bioReportR](https://IMERSS/bioreportr) publishing system, which
 is based on R and R Markdown, using free tools such as git, R and R studio, and published and hosted for free using
@@ -36,7 +36,8 @@ If you haven't worked with this kind of project before, you will need the follow
 
 * R and R studio, installed from [posit's website](https://posit.co/download/rstudio-desktop/)
 
-In order to reknit the markup rendered by R and R markdown for the full website build, you will also need the following tools:
+In order to build the story page from the markup rendered by R and R markdown for the full website build, you will also
+need the following tools:
 
 * node and npm for your platform, installed according to [node's instructions](https://nodejs.org/en/download/).
 
@@ -72,7 +73,7 @@ Blogdown and Hugo are installed automatically by the R platform, but Hugo's [hug
 root source of configuration for the published website which you should become familiar with.
 Here's [Hugo's guide](https://gohugo.io/configuration/introduction/) to this file.
 
-## Knitting and reknitting markup from your markdown
+## Knitting your markdown and building the story
 
 The first part of the publishing chain is to use the builtin "knitting" functionality in R studio described in the
 [authoring guide](https://rmarkdown.rstudio.com/authoring_quick_tour.html) - open up one of the .Rmd file
@@ -100,25 +101,36 @@ choropleth which can be filtered by taxon status.
 live at [Extirpation Risk](https://imerss.github.io/howe-sound-mapping-2026/story/#pane:Solow) --- a special vignette
 allowing taxa to be ranked by extinction risk and showing communities agglomerated to a particular population radius.
 
-The type of vignette is customised by a mixture of YAML front matter in the .Rmd files, and entries in the
-[config.json5](config.json5) file's `paneHandlers` section --- we are gradually migrating from the former to the latter.
-Currently you must have an entry in `paneHandlers` matching the basename of the .Rmd file for each vignette.
+The type of vignette is customised by a mixture of YAML front matter in the .Rmd files, such as its `title` and its
+`weight`, which orders the panes, and entries in the `paneOverrides` member of the story's driver,
+[static/local/story/howe-story.vue](static/local/story/howe-story.vue), keyed by the basename of the .Rmd file.
 
-Once your vignette knits properly using the R Studio "Knit" process, you can reknit them all into the story format, and build
-the hugo/blogdown site as a whole by running
-"Build Website" from R Studio's "Build" menu.
+Once your vignettes knit properly using the R Studio "Knit" process, build the story and the site as a whole by running
+
+    npm run build
+
+This runs four steps, which can also be run singly:
+
+* `npm run story` runs [src/js/storyBuild.js](src/js/storyBuild.js), which writes the panes knitted from
+  [content/story](content/story), and the data of their maps, into `static/story`
+* `npm run vendor` runs Infusion 6's `copyOut.js`, which copies Infusion and the IMERSS visualisation framework into
+  `static/vendor`
+* `hugo` builds the site into `docs`
+* `npm run hydrate` runs Infusion 6's `hydrate.js`, which renders the story page into `docs/story/index.html`, so that
+  it shows its markup before its data has loaded
+
 Commit and push the output from this stage using R Studio or command-line git as you prefer. For using R Studio
 to commit your file, you can follow the steps in
 [section 12.4](https://happygitwithr.com/rstudio-git-github.html#make-local-changes-save-commit) of the guide to using
 GitHub in R studio.
 
-If you want to reknit to different input or output filenames, edit the reknitJobs block in the configuration file
-at [config.json5](config.json5). To customise the markup which frames the reknitted output, you can edit the HTML
-template at [src/html/template.html](src/html/template.html).
+The markup framing the story is the Hugo layout [layouts/story/baseof.html](layouts/story/baseof.html), which imports
+the story's driver and holds the element on which it boots. During development, the story can be viewed without Hugo
+from [static/story/index-dev.html](static/story/index-dev.html).
 
 ## Setting up GitHub Pages to publish your markup
 
-To publish the markup resulting from both the knitting and the reknitting process, set up the configuration on your
+To publish the markup resulting from both the knitting and the build, set up the configuration on your
 repository to publish GitHub Pages from the `docs` folder of the `main` branch. This is available from the `Pages`
 tab on your repository's settings, as shown in the image below:
 
@@ -130,8 +142,9 @@ The overall URL of your documents published in GitHub pages will start with `htt
 
 ## Bringing your own data
 
-The vizualisation requires three CSV files to be configured, which you can see in the `vizLoader` section of
-[config.json5](config.json5). These are:
+The vizualisation requires three CSV files to be configured, which are named in the story's driver,
+[static/local/story/howe-story.vue](static/local/story/howe-story.vue). Each is named beside its placeholder, a short
+file of the same shape from which the story page is rendered by `npm run hydrate` before its data has loaded. These are:
 
 `obsFile` holding the catalogue of observations. For this visualisation, this file is
 [AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv](docs/local/data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv).

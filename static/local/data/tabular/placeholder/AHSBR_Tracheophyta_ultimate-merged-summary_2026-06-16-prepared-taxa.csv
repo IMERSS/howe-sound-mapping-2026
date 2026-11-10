@@ -1,0 +1,9 @@
+id,parentId,iNaturalistTaxonName,commonName,rank,iNaturalistTaxonImage,scientificName,introduction_status,reportingStatus,infrataxon_status,provincial_concern,provenance_status,solow_EP,species,subspecies,variety,nameStatus,inSummary
+136329,211194,Pinopsida,conifers,class,https://inaturalist-open-data.s3.amazonaws.com/photos/8663621/medium.jpg,,,,,,,0.0,,,,,
+211194,47126,Tracheophyta,Vascular Plants,phylum,https://inaturalist-open-data.s3.amazonaws.com/photos/301768574/medium.jpg,,,,,,,0.0,,,,,
+47126,48460,Plantae,Plants,kingdom,https://static.inaturalist.org/photos/221143410/medium.jpeg,,,,,,,0.0,,,,,
+47375,136329,Pinales,conifers,order,https://inaturalist-open-data.s3.amazonaws.com/photos/170033792/medium.jpg,,,,,,,0.0,,,,,
+47562,47375,Pinaceae,pine family,family,https://inaturalist-open-data.s3.amazonaws.com/photos/275129245/medium.jpg,,,,,,,0.0,,,,,
+48460,,Life,life,stateofmatter,https://inaturalist-open-data.s3.amazonaws.com/photos/347064198/medium.jpeg,,,,,,,0.0,,,,,
+54262,47562,Abies,firs,genus,https://inaturalist-open-data.s3.amazonaws.com/photos/108627343/medium.jpeg,,,,,,,0.0,,,,,
+75240,54262,Abies amabilis,Pacific silver fir,species,https://inaturalist-open-data.s3.amazonaws.com/photos/18000782/medium.jpeg,Abies amabilis,native,confirmed,non-infrataxon,secure,voucher,0.0,amabilis,,,accepted,1

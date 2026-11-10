@@ -13,4 +13,4 @@ reducedList <- reducedList %>% rename("reportingStatus" = "occurrence_status", "
 
 timedWrite(reducedList, "tabular_data/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-orig.csv")
 
-# Next: node ../bagatelle/src/assignBNames.js tabular_data/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-orig.csv --DwCA --swaps tabular_data/taxon-swaps.csv
+# Next: node node_modules/imerss-bioinfo/src/assignBNames.js tabular_data/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-orig.csv --DwCA --swaps tabular_data/taxon-swaps.csv

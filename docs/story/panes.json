@@ -1,0 +1,141 @@
+[
+  {
+    "title": "Howe Sound's vascular plant diversity",
+    "shortTitle": "Regional Diversity",
+    "weight": 1,
+    "paneKey": "Vascular_BEC",
+    "regionField": "BEC",
+    "visibleGrid": false,
+    "visibleObsTable": true,
+    "view": {
+      "type": "view",
+      "lon": -123.2194,
+      "lat": 49.6608,
+      "zoom": 8.5
+    },
+    "selectableRegions": [
+      "CWHxm1",
+      "CWHdm",
+      "CWHvm2",
+      "CWHvm1",
+      "CWHds1",
+      "CWHms1",
+      "MHmm1",
+      "MHmm2",
+      "CMAunp"
+    ],
+    "file": "Vascular_BEC.html",
+    "dataFile": null,
+    "widgetIds": [],
+    "layers": [
+      "reknitr.obsMapPaneHandler"
+    ]
+  },
+  {
+    "title": "History of collection activities within the region",
+    "shortTitle": "History",
+    "weight": 2,
+    "visibleGrid": true,
+    "visibleObsTable": false,
+    "view": {
+      "type": "view",
+      "lon": -123.2194,
+      "lat": 49.6608,
+      "zoom": 8.5
+    },
+    "selectableRegions": [],
+    "paneKey": "History",
+    "file": "History.html",
+    "dataFile": "History-data.html",
+    "widgetIds": [
+      "speciesPlot"
+    ],
+    "layers": [
+      "reknitr.obsMapPaneHandler"
+    ]
+  },
+  {
+    "title": "Flora of Átl’ḵa7tsem/Howe Sound",
+    "shortTitle": "Atlas",
+    "weight": 3,
+    "visibleGrid": true,
+    "visibleFilters": true,
+    "visibleObsTable": true,
+    "regionField": "!statusAsRegion",
+    "statusColors": {
+      "confirmed": "#5a96d2",
+      "historical": "#decb90",
+      "new": "#7562b4"
+    },
+    "view": {
+      "type": "view",
+      "lon": -123.2194,
+      "lat": 49.6608,
+      "zoom": 8.5
+    },
+    "selectableRegions": [],
+    "paneKey": "Status",
+    "file": "Status.html",
+    "dataFile": null,
+    "widgetIds": [],
+    "layers": [
+      "reknitr.obsMapPaneHandler"
+    ]
+  },
+  {
+    "title": "Community contributions to our knowledge of the regional plant diversity",
+    "shortTitle": "Community Science",
+    "weight": 4,
+    "paneKey": "TopContributions",
+    "file": "TopContributions.html",
+    "dataFile": null,
+    "widgetIds": [],
+    "layers": []
+  },
+  {
+    "title": "Vascular plant diversity within Howe Sound's protected areas",
+    "shortTitle": "Protected Areas",
+    "weight": 5,
+    "regionField": "Protected",
+    "visibleObsTable": false,
+    "visibleGrid": false,
+    "view": {
+      "type": "view",
+      "lon": -123.2194,
+      "lat": 49.6608,
+      "zoom": 8.5
+    },
+    "selectableRegions": [
+      "A - Park",
+      "Other Effective Area-Based Conservation Measure",
+      "Privately Owned Conservation Area",
+      "Wildlife Habitat Areas",
+      "Protected Area",
+      "Sea To Sky Wildland Zones",
+      "Migratory Bird Sanctuary",
+      "Ecological Reserve",
+      "Conservancy",
+      "Old Growth Management Areas (Mapped Legal)",
+      "Wildlife Management Area"
+    ],
+    "paneKey": "Protected",
+    "file": "Protected.html",
+    "dataFile": "Protected-data.html",
+    "widgetIds": [
+      "protectedAreas"
+    ],
+    "layers": [
+      "reknitr.obsMapPaneHandler"
+    ]
+  },
+  {
+    "title": "Finding the lost plants",
+    "shortTitle": "Find the Plants",
+    "weight": 5,
+    "paneKey": "Solow",
+    "file": "Solow.html",
+    "dataFile": null,
+    "widgetIds": [],
+    "layers": []
+  }
+]
