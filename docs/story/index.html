@@ -1460,6 +1460,8 @@ bioreportr.paneBaseSettings = {
     visibleObsTable: false,
     visibleVizControls: false,
     visibleSolow: false,
+    // Whether the filters and checklist fold away once a taxon is chosen, as on the curation pane
+    foldVizControlsOnTaxon: false,
     regionField: null,
     selectableRegions: [],
     maxObsCountOverride: null,
@@ -1934,76 +1936,33 @@ bioreportr.cellTooltip.statuses = [["unconfirmed", "Historical"], ["new", "Newly
 
 bioreportr.cellTooltip.plural = (count, noun) => `${bioreportr.formatCount(count)} ${noun}${count === 1 ? "" : "s"}`;
 
-bioreportr.cellTooltip.section = (heading, status, body) =>
-    `<div class="mxcw-cell-section" style="--tip-colour:${bioreportr.statusColours[status]}">${bioreportr.tip.heading(heading)}${body}</div>`;
-
 /**
- * Find the earliest record of each taxon across the whole atlas, whatever filters are applied.
- * @param {Object[]} obsRows - All records
- * @return {Map<String, Object>} The earliest record of each taxon id
- */
-bioreportr.cellTooltip.earliestRecords = function (obsRows) {
-    const earliest = new Map();
-    obsRows.forEach(record => {
-        const current = earliest.get(record.iNaturalistTaxonId);
-        if (record.eventDate && (!current || record.eventDate < current.eventDate)) {
-            earliest.set(record.iNaturalistTaxonId, record);
-        }
-    });
-    return earliest;
-};
-
-/**
- * Render the summary of a cell of the map's grid, leading with what matters most to the search for lost plants: the
- * historical species recorded there, highest extirpation probability first, followed by what has newly been found
- * there and what is well documented, together with a bar of the cell's species by reporting status.
+ * Render the summary of a cell of the map's grid: how many of its species, and of its records, are of each reporting
+ * status - historical, newly reported and confirmed - with a bar of its species by status. What is known of any one
+ * species is left to the panes, where it is chosen.
  * @param {Object} grid - The grid of records, whose buckets index the records gridded
  * @param {Object<String, TaxonRow>} rowById - Taxon rows indexed by id
- * @param {Object[]} gridRows - The records gridded, which the grid's buckets index
- * @param {Map<String, Object>} earliest - The earliest record of each taxon across the atlas
- * @param {Object<String, String>} headings - The headings of the sections, by reporting status
  * @param {String} cellId - The id of the cell
  * @return {String|null} The markup for the summary, or null if the cell holds no records
  */
-bioreportr.cellTooltip.render = function (grid, rowById, gridRows, earliest, headings, cellId) {
+bioreportr.cellTooltip.render = function (grid, rowById, cellId) {
     const bucket = grid.buckets[cellId];
     let togo = null;
     if (bucket) {
-        const encode = hortis.dataTable.encode;
-        const plants = Object.entries(bucket.byTaxonId).filter(([taxonId]) => rowById[taxonId]).map(([taxonId, obsIndices]) => {
-            const records = obsIndices.map(index => gridRows[index]).filter(record => record?.eventDate).sort(bioreportr.obsDateComparator);
-            return {taxon: rowById[taxonId], count: obsIndices.length, first: records[0], last: fluid.peek(records)};
-        });
-        const inStatus = status => plants.filter(plant => plant.taxon.reportingStatus === status);
-        const name = plant => plant.taxon.scientificName || plant.taxon.iNaturalistTaxonName;
-        const more = (list, shown) => list.length > shown ? `<div class="mxcw-tip-note">and ${list.length - shown} more</div>` : "";
-        const recorder = plant => (plant.last?.recordedBy || "").split(";")[0].trim();
-
-        const segments = bioreportr.cellTooltip.statuses.map(([status, label]) => ({status, label, count: inStatus(status).length})).filter(segment => segment.count > 0);
+        const taxa = Object.entries(bucket.byTaxonId).filter(([taxonId]) => rowById[taxonId])
+            .map(([taxonId, obsIndices]) => ({status: rowById[taxonId].reportingStatus, records: obsIndices.length}));
+        const segments = bioreportr.cellTooltip.statuses.map(([status, label]) => {
+            const inStatus = taxa.filter(taxon => taxon.status === status);
+            return {status, label, species: inStatus.length, records: inStatus.reduce((sum, taxon) => sum + taxon.records, 0)};
+        }).filter(segment => segment.species > 0);
         const colour = segment => bioreportr.statusColours[segment.status];
-        const bars = segments.map(segment => `<span style="flex:${segment.count};background:${colour(segment)}"></span>`).join("");
-        const keys = segments.map(segment => `<span><i style="background:${colour(segment)}"></i>${segment.label} ${segment.count}</span>`).join("");
-        const stack = `<div class="mxcw-cell-stack">${bars}</div><div class="mxcw-cell-key">${keys}</div>`;
-
-        const historical = inStatus("unconfirmed").sort((a, b) => (+b.taxon.solow_EP || 0) - (+a.taxon.solow_EP || 0));
-        // A newly reported species is identified by its earliest record anywhere, not by whatever was last seen in this cell
-        const fresh = inStatus("new").map(plant => ({...plant, earliest: earliest.get(plant.taxon.id)})).filter(plant => plant.earliest)
-            .sort((a, b) => b.earliest.eventDate.localeCompare(a.earliest.eventDate));
-        const confirmed = inStatus("confirmed").sort((a, b) => b.count - a.count);
-
-        const sections = [
-            historical.length && bioreportr.cellTooltip.section(headings.unconfirmed, "unconfirmed",
-                bioreportr.tip.bars(historical.slice(0, 4).map(plant => [name(plant), plant.count,
-                    `${plant.count} · ${plant.last ? bioreportr.year(plant.last.eventDate) : "?"}`])) + more(historical, 4)),
-            fresh.length && bioreportr.cellTooltip.section(headings.new, "new",
-                `<ul class="mxcw-tip-list">${fresh.slice(0, 3).map(plant => `<li><i>${encode(name(plant))}</i> ${bioreportr.year(plant.earliest.eventDate)}${recorder(plant) ? ", " + encode(recorder(plant)) : ""}${plant.first?.eventDate === plant.earliest.eventDate ? " (here)" : ""}</li>`).join("")}</ul>` + more(fresh, 3)),
-            confirmed.length && bioreportr.cellTooltip.section(headings.confirmed, "confirmed",
-                bioreportr.tip.bars(confirmed.slice(0, 3).map(plant => [name(plant), plant.count])) + more(confirmed, 3))
-        ].filter(Boolean).join("");
-
+        const bars = segments.map(segment => `<span style="flex:${segment.species};background:${colour(segment)}"></span>`).join("");
+        const rows = segments.map(segment => `<span class="mxcw-cell-status"><i style="background:${colour(segment)}"></i>${segment.label}</span>` +
+            `<span>${bioreportr.formatCount(segment.species)}</span><span>${bioreportr.formatCount(segment.records)}</span>`).join("");
         togo = `<div class="mxcw-cell-tip">
-            <div class="mxcw-tip-title">${bioreportr.formatCount(plants.length)} species <span>${bioreportr.cellTooltip.plural(bucket.obsCount, "record")}</span></div>
-            ${stack}${sections}
+            <div class="mxcw-tip-title">${bioreportr.formatCount(taxa.length)} species <span>${bioreportr.cellTooltip.plural(bucket.obsCount, "record")}</span></div>
+            <div class="mxcw-cell-stack">${bars}</div>
+            <div class="mxcw-cell-counts"><span></span><span>Species</span><span>Records</span>${rows}</div>
         </div>`;
     }
     return togo;
@@ -2189,9 +2148,13 @@ bioreportr.storyPage.noRecordSelected = filterState => !hortis.isValue(filterSta
 // The pane last shown by each story page, so that a record selected in it is cleared on moving to another
 bioreportr.storyPage.lastPaneKey = new WeakMap();
 
+// The id of a record selected together with a move to another pane, which is kept as the pane changes, e.g. on opening
+// the curation of a record - see bioreportr.curation.openRecord
+bioreportr.storyPage.keepRecord = new WeakMap();
+
 /**
  * Clear the selected record when the story page moves from one pane to another - but not as it first shows a pane,
- * so that a record held in the URL survives the page's loading.
+ * so that a record held in the URL survives the page's loading, nor a record selected together with the move.
  * @param {bioreportr.storyPage} storyPage - The story page
  * @param {String} activePaneKey - The key of the active pane
  */
@@ -2200,7 +2163,13 @@ bioreportr.storyPage.clearRecordOnPaneChange = function (storyPage, activePaneKe
     bioreportr.storyPage.lastPaneKey.set(storyPage, activePaneKey);
     if (lastPaneKey !== undefined && lastPaneKey !== activePaneKey) {
         // Deferred since an effect may not write signals
-        fluid.invokeLater(() => storyPage.map.recordSelector.reset());
+        fluid.invokeLater(() => {
+            const kept = bioreportr.storyPage.keepRecord.get(storyPage);
+            bioreportr.storyPage.keepRecord.delete(storyPage);
+            if (kept === undefined || kept !== storyPage.map.recordSelector.filterState) {
+                storyPage.map.recordSelector.reset();
+            }
+        });
     }
 };
 
@@ -2216,6 +2185,39 @@ bioreportr.storyPane.click = function (storyPage, event) {
 bioreportr.storyMap.untrackSize = function (observer) {
     observer.disconnect();
 };
+
+/** Tooltips on touch screens **/
+
+fluid.registerNamespace("bioreportr.touchTooltips");
+
+/**
+ * Put away every tooltip when the screen is touched. A tooltip is shown by hovering, which a touch screen imitates by
+ * moving its pointer to whatever is tapped - but a tap on anything which does nothing when tapped sends no movement at
+ * all, so a tooltip once shown would never be hidden. Every component showing tooltips, i.e. holding `hoverAt` as
+ * hortis.withTooltip does, is cleared as the touch begins; a tap on something with a tooltip shows it again at once,
+ * by the movement the browser then sends to it.
+ * @param {Window} window - The window holding the story page
+ */
+bioreportr.touchTooltips.install = function (window) {
+    if (!window.bioreportrTouchTooltips) {
+        window.bioreportrTouchTooltips = true;
+        window.addEventListener("pointerdown", event => {
+            if (event.pointerType === "touch" && !event.target.closest?.(".imerss-tooltip-holder")) {
+                Object.values(fluid.globalInstantiator.pathToComponent).forEach(shadow => {
+                    const that = shadow?.that;
+                    if (that && !shadow.inert && typeof that.hoverAt === "function") {
+                        that.hoverAt(null);
+                    }
+                });
+            }
+        }, true);
+    }
+};
+
+// Only in a browser - the page is also rendered ahead of time by the build, see `npm run hydrate`
+if (typeof window !== "undefined" && window.addEventListener) {
+    bioreportr.touchTooltips.install(window);
+}
 
 }).call(globalThis);
 //# sourceURL=../bioreportr/js/story.js</script>
@@ -2293,7 +2295,7 @@ bioreportr.solowObsForTaxon = function (obsRows, taxonRow) {
 bioreportr.solowTaxonInfo.model = function (taxon, taxonObsRows) {
     return taxon && taxonObsRows.length > 0 ? {
         none: false,
-        taxonName: taxon.scientificName,
+        taxonName: taxon.scientificName + (taxon.commonName ? ` (${taxon.commonName})` : ""),
         dateFirstSeen: bioreportr.eventDay(taxonObsRows[0].eventDate),
         dateLastSeen: bioreportr.eventDay(taxonObsRows[taxonObsRows.length - 1].eventDate),
         numObs: taxonObsRows.length,
@@ -2434,11 +2436,16 @@ bioreportr.solowMapLayer.LAYER_ID = "solow-layer";
 bioreportr.solowMapLayer.geoJSON = function (clusters) {
     return {
         type: "FeatureCollection",
-        features: clusters.flatMap(cluster => cluster.points.map(point => ({
-            type: "Feature",
-            geometry: {type: "Point", coordinates: point.point},
-            properties: {solowEP: 1 - cluster.pp, clusterId: cluster.id}
-        })))
+        // One circle for each distinct place in a population, within about 10m - many records share a place, and their
+        // circles, drawn one over another, would add up to a solid fill hiding the land beneath
+        features: clusters.flatMap(cluster => {
+            const places = new Map(cluster.points.map(point => [point.point.map(coord => (+coord).toFixed(4)).join(","), point.point]));
+            return [...places.values()].map(coordinates => ({
+                type: "Feature",
+                geometry: {type: "Point", coordinates},
+                properties: {solowEP: 1 - cluster.pp, clusterId: cluster.id}
+            }));
+        })
     };
 };
 
@@ -2457,6 +2464,10 @@ bioreportr.solowMapLayer.metresToPixels = function (radiusMetres, zoom, lat) {
  * @param {Number} zoom - The map's zoom level
  * @param {Function} sortLayers - The map component's method sorting its layers
  */
+// The fill of the populations lets the land beneath show through, while a solid outline of the same colour keeps each legible
+bioreportr.solowMapLayer.fillOpacity = 0.55;
+bioreportr.solowMapLayer.outlineWidth = 1.5;
+
 bioreportr.solowMapLayer.update = function (map, clusters, solowRadius, visible, zoom, sortLayers) {
     const geoJSON = bioreportr.solowMapLayer.geoJSON(clusters);
     const source = map.getSource(bioreportr.solowMapLayer.SOURCE_ID);
@@ -2467,10 +2478,12 @@ bioreportr.solowMapLayer.update = function (map, clusters, solowRadius, visible,
     }
     const lat = geoJSON.features[0]?.geometry.coordinates[1] ?? 49;
     const radius = bioreportr.solowMapLayer.metresToPixels(solowRadius, zoom, lat);
-    const opacity = visible ? 1 : 0;
+    const opacity = visible ? bioreportr.solowMapLayer.fillOpacity : 0;
+    const outlineOpacity = visible ? 1 : 0;
     if (map.getLayer(bioreportr.solowMapLayer.LAYER_ID)) {
         map.setPaintProperty(bioreportr.solowMapLayer.LAYER_ID, "circle-radius", radius);
         map.setPaintProperty(bioreportr.solowMapLayer.LAYER_ID, "circle-opacity", opacity);
+        map.setPaintProperty(bioreportr.solowMapLayer.LAYER_ID, "circle-stroke-opacity", outlineOpacity);
     } else {
         map.addLayer({
             id: bioreportr.solowMapLayer.LAYER_ID,
@@ -2480,7 +2493,9 @@ bioreportr.solowMapLayer.update = function (map, clusters, solowRadius, visible,
                 "circle-radius": radius,
                 "circle-color": {property: "solowEP", stops: hortis.libreMap.viridisStops},
                 "circle-opacity": opacity,
-                "circle-stroke-width": 0
+                "circle-stroke-width": bioreportr.solowMapLayer.outlineWidth,
+                "circle-stroke-color": {property: "solowEP", stops: hortis.libreMap.viridisStops},
+                "circle-stroke-opacity": outlineOpacity
             },
             metadata: {sortKey: 110}
         });
@@ -2511,26 +2526,61 @@ bioreportr.solowMapLayer.addLegend = function (map, legendPosition, dokkument) {
     return control;
 };
 
-bioreportr.solowTooltipTemplate =
-`<div class="imerss-tooltip imerss-bbea-grid-tooltip">
-    <dl class="mxcw-taxon-fields">
-        <dt>Cluster ID: </dt>     <dd>%clusterId</dd>
-        <dt>Date first seen:</dt> <dd>%dateFirstSeen</dd>
-        <dt>Date last seen:</dt>  <dd>%dateLastSeen</dd>
-        <dt>Total sightings:</dt> <dd>%numObs</dd>
-        <dt>Cluster EP:</dt>      <dd>%clusterEP</dd>
-    </dl>
-</div>`;
+/**
+ * The colour of a probability of extirpation on the map's scale, that of the stop at or beneath it.
+ * @param {Number} ep - The probability
+ * @return {String} The colour
+ */
+bioreportr.solowMapLayer.epColour = function (ep) {
+    const stops = hortis.libreMap.viridisStops;
+    return (stops.filter(([value]) => value <= ep).pop() || stops[0])[1];
+};
 
-bioreportr.solowMapLayer.renderTooltip = function (clusters, clusterId) {
+/**
+ * Render the tooltip of a population - its probability of extirpation, and the figures from which Solow's (1993)
+ * method computes it: how many sightings the population holds, the year of the last, and the period of observation.
+ * @param {Object[]} clusters - The populations of the chosen taxon
+ * @param {String} clusterId - The id of the population hovered over
+ * @param {Object} solowParams - The period of observation, with members `baselineYear` and `analysisYear`
+ * @return {String|null} The tooltip's markup, or null if there is no such population
+ */
+bioreportr.solowMapLayer.renderTooltip = function (clusters, clusterId, solowParams) {
     const cluster = clusters[clusterId];
-    return cluster ? hortis.stringTemplate(bioreportr.solowTooltipTemplate, {
-        clusterId,
-        dateFirstSeen: bioreportr.eventDay(cluster.obsRows[0].eventDate),
-        dateLastSeen: bioreportr.eventDay(cluster.obsRows[cluster.obsRows.length - 1].eventDate),
-        numObs: cluster.obsRows.length,
-        clusterEP: (1 - cluster.pp).toFixed(3)
-    }) : null;
+    let togo = null;
+    if (cluster) {
+        const ep = 1 - cluster.pp;
+        const last = bioreportr.eventDateToYear(fluid.peek(cluster.obsRows).eventDate);
+        const since = solowParams.analysisYear - last;
+        togo = `<div class="mxcw-cell-tip mxcw-population-tip">
+            <div class="mxcw-tip-title">Population ${+clusterId + 1} <span>of ${clusters.length}</span></div>
+            <div class="mxcw-population-ep"><span class="mxcw-population-swatch" style="background:${bioreportr.solowMapLayer.epColour(ep)}"></span>
+                Extirpation probability <b>${ep.toFixed(2)}</b></div>
+            <dl class="mxcw-population-stats">
+                <dt>Sightings</dt> <dd>${cluster.obsRows.length.toLocaleString()}</dd>
+                <dt>Last sighting</dt> <dd>${last} <span>(${since === 0 ? "this year" : since + (since === 1 ? " year ago" : " years ago")})</span></dd>
+                <dt>Observation period</dt> <dd>${solowParams.baselineYear}–${solowParams.analysisYear}</dd>
+            </dl>
+        </div>`;
+    }
+    return togo;
+};
+
+// How far in pixels around the pointer a population is looked for, so that its tooltip shows without the pointer having
+// to land exactly within a small circle
+bioreportr.solowMapLayer.hoverTolerance = 6;
+
+/**
+ * Find the population under or near the pointer.
+ * @param {maplibregl.Map} map - The map
+ * @param {Object} point - The pointer's position on the map, as {x, y}
+ * @return {Number|null} The id of the population, or null if there is none near
+ */
+bioreportr.solowMapLayer.clusterAt = function (map, point) {
+    const tolerance = bioreportr.solowMapLayer.hoverTolerance;
+    const features = map.getLayer(bioreportr.solowMapLayer.LAYER_ID) ? map.queryRenderedFeatures(
+        [[point.x - tolerance, point.y - tolerance], [point.x + tolerance, point.y + tolerance]],
+        {layers: [bioreportr.solowMapLayer.LAYER_ID]}) : [];
+    return features[0]?.properties.clusterId ?? null;
 };
 
 /**
@@ -2540,16 +2590,48 @@ bioreportr.solowMapLayer.renderTooltip = function (clusters, clusterId) {
  * @return {Object} A record of the listeners, to be supplied to `hortis.libreMap.gridSelector.unbindHover`
  */
 bioreportr.solowMapLayer.bindHover = function (that, map) {
+    // Shown as the map's own popup, beside the population, rather than through the page's tooltips, so that it follows
+    // the map wherever it is laid out
+    const popup = new maplibregl.Popup({closeButton: false, closeOnClick: false, maxWidth: "none", offset: 14,
+        className: "mxcw-population-popup"});
+    let shown = null;
+    const leave = () => {
+        shown = null;
+        popup.remove();
+        map.getCanvas().style.cursor = "";
+    };
     const listener = e => {
-        if (that.visible) {
-            const clusterId = hortis.libreMap.eventToProp(map, e, "clusterId");
-            that.hoverAt(clusterId, e.originalEvent);
+        const clusterId = that.visible ? bioreportr.solowMapLayer.clusterAt(map, e.point) : null;
+        if (hortis.isValue(clusterId)) {
+            // As text, since the first population's id, 0, would otherwise read as no population at all
+            const id = String(clusterId);
+            if (id !== shown) {
+                shown = id;
+                popup.setHTML(that.renderTooltip(id) || "");
+            }
+            popup.setLngLat(e.lngLat).addTo(map);
+            map.getCanvas().style.cursor = "pointer";
+        } else if (shown !== null) {
+            leave();
         }
     };
-    const leave = () => that.hoverAt(null);
     map.on("mousemove", listener);
     map.on("mouseout", leave);
     return {map, listener, leave};
+};
+
+// The listeners of the populations' tooltips, by map, so that each map is given them once only
+bioreportr.solowMapLayer.hoverBound = new WeakMap();
+
+/**
+ * Give the map the listeners showing the tooltips of the populations, if it does not have them already.
+ * @param {bioreportr.solowMapLayer} that - The layer
+ * @param {maplibregl.Map} map - The map, once it is ready
+ */
+bioreportr.solowMapLayer.ensureHover = function (that, map) {
+    if (!bioreportr.solowMapLayer.hoverBound.has(map)) {
+        bioreportr.solowMapLayer.hoverBound.set(map, bioreportr.solowMapLayer.bindHover(that, map));
+    }
 };
 
 bioreportr.summaryTaxaRows = rows => rows.filter(row => row.inSummary);
@@ -2617,18 +2699,1172 @@ fluid.def("bioreportr.solowMapLayer", {
         }
     },
     renderLegend: "$effect:hortis.libreMap.renderLegend({self}.legend, {self}.legendMarkup, {self}.visible)",
-    renderTooltip: "$method:bioreportr.solowMapLayer.renderTooltip({self}.clusters, {0}:clusterId)",
-    hover: {
-        $bindable: {
-            bind: "bioreportr.solowMapLayer.bindHover({self}, {storyPage}.map.readyMap)",
-            unbind: "hortis.libreMap.gridSelector.unbindHover({boundValue})"
-        }
-    }
+    renderTooltip: "$method:bioreportr.solowMapLayer.renderTooltip({self}.clusters, {0}:clusterId, {storyPage}.solowParams)",
+    // Attached by an effect, as the circles are drawn, once the map is ready - see bioreportr.solowMapLayer.ensureHover
+    hover: "$effect:bioreportr.solowMapLayer.ensureHover({self}, {storyPage}.map.readyMap)"
 });
 
 }).call(globalThis);
 //# sourceURL=../bioreportr/js/solow.js</script>
-    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyPage-9">(function () {
+    <script data-fluid-indent="4" data-fluid-hydrated="" fluid-src="../bioreportr/js/curation.js" id="fl-script-bioreportr.storyPage-9">(function () {/*
+Copyright 2026 IMERSS
+Licensed under the Educational Community License (ECL), Version 2.0 or the New
+BSD license. You may not use this file except in compliance with one these
+Licenses.
+You may obtain a copy of the ECL 2.0 License and BSD License at
+https://github.com/fluid-project/infusion/raw/master/Infusion-LICENSE.txt
+*/
+
+"use strict";
+
+// Community curation of the taxa and records of a story - see notes/community-curation-design.md. Each note is a
+// comment on the thread of its taxon in the project's GitHub Discussions, and is of one of three types: on the
+// provenance of a taxon, on its taxonomy, or on an observation, e.g. correcting its position. A GitHub Actions job
+// consolidates notes on taxa into taxa.csv and those on observations into observations.csv, with claimStatus.json
+// listing the claims consolidated. A note submitted from this page is held in local storage until its claim appears
+// there, and is shown meanwhile as if it were consolidated
+
+// noinspection ES6ConvertVarToLetConst // otherwise this is a duplicate on minifying
+var bioreportr = fluid.registerNamespace("bioreportr");
+// noinspection ES6ConvertVarToLetConst // otherwise this is a duplicate on minifying
+var hortis = fluid.registerNamespace("hortis");
+
+fluid.registerNamespace("bioreportr.curation");
+fluid.registerNamespace("bioreportr.curation.backends");
+fluid.registerNamespace("bioreportr.curationForm");
+
+/**
+ * A note on a taxon or an observation, as consolidated into taxa.csv or observations.csv, or held locally until it is.
+ * @typedef {Object} CurationNote
+ * @property {String} type - One of the `bioreportr.curation.types` - "provenance" for a note written before types were
+ * introduced
+ * @property {String} taxonId - The id of the taxon, or of the observation's taxon
+ * @property {String} taxonName - The taxon's scientific name
+ * @property {String} [recordId] - The id of the observation, for a note of type "observation", as computed by
+ * `hortis.libreMap.recordId`
+ * @property {String} claimId - The 21 character Nano ID allocated to the note's submission
+ * @property {String} author - The GitHub login of the note's author
+ * @property {String} submitted - The time of submission, as an ISO 8601 string
+ * @property {String} [present] - For a note on provenance, the vote on whether the taxon is present, one of the
+ * `bioreportr.curation.votes`
+ * @property {String} [planted] - The vote on whether it is planted
+ * @property {String} [waif] - The vote on whether it is a waif, or unestablished
+ * @property {String} [lat] - For a note on an observation, the latitude of its corrected position, or the empty string
+ * if the note corrects none
+ * @property {String} [long] - The longitude of its corrected position
+ * @property {String} comment - Free text - for a note on taxonomy, the correction of the taxon's synonymy
+ * @property {String} url - The URL of the note's comment on GitHub, if known
+ * @property {String} [commentId] - The node id of the note's comment on GitHub, kept with a pending note
+ * @property {Boolean} [pending] - `true` for a note held locally whose claim is not yet consolidated
+ */
+
+// The questions of the vote, with their labels
+bioreportr.curation.questions = [["present", "Present"], ["planted", "Planted"], ["waif", "Waif / unestablished"]];
+
+// The answers to each question
+bioreportr.curation.votes = ["yes", "no", "no opinion"];
+
+// The line marking the YAML block of a comment as a curation note
+bioreportr.curation.marker = "# bioreportr-curation";
+
+// The types of note - on a taxon's provenance, on its taxonomy, and on an observation
+bioreportr.curation.taxonTypes = ["provenance", "taxonomy"];
+bioreportr.curation.types = [...bioreportr.curation.taxonTypes, "observation"];
+
+// The fields of each type of note written into its comment, in order
+bioreportr.curation.commentFields = {
+    provenance: ["claimId", "type", "taxonId", "taxonName", "present", "planted", "waif", "comment"],
+    taxonomy: ["claimId", "type", "taxonId", "taxonName", "comment"],
+    observation: ["claimId", "type", "recordId", "taxonId", "taxonName", "lat", "long", "comment"]
+};
+
+/**
+ * The type of a note - one written before types were introduced is on provenance.
+ * @param {CurationNote} note - The note
+ * @return {String} Its type, one of the `bioreportr.curation.types`
+ */
+bioreportr.curation.noteType = note => note.type || "provenance";
+
+/**
+ * The subject of a note, of which each author has at most one note - a type of note on a taxon, or an observation.
+ * @param {CurationNote} note - The note
+ * @return {String} The key of its subject
+ */
+bioreportr.curation.subjectKey = function (note) {
+    const type = bioreportr.curation.noteType(note);
+    return type === "observation" ? "observation|" + note.recordId : type + "|" + note.taxonId;
+};
+
+// The alphabet of Nano ID
+bioreportr.curation.nanoidAlphabet = "useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
+
+/**
+ * Allocate a claim id - a 21 character Nano ID, from the browser's cryptographic random numbers.
+ * @param {Crypto} crypto - The window's crypto
+ * @return {String} The claim id
+ */
+bioreportr.curation.nanoid = function (crypto) {
+    const bytes = crypto.getRandomValues(new Uint8Array(21));
+    return Array.from(bytes, byte => bioreportr.curation.nanoidAlphabet[byte & 63]).join("");
+};
+
+/**
+ * Render a note as the body of its comment - a sentence for readers of the thread, then the note as a flat YAML block,
+ * each value quoted as JSON, which YAML reads as a double-quoted string.
+ * @param {CurationNote} note - The note
+ * @param {String} pageUrl - The URL of the page from which it was submitted
+ * @return {String} The body of the comment
+ */
+bioreportr.curation.commentBody = function (note, pageUrl) {
+    const type = bioreportr.curation.noteType(note);
+    const lines = bioreportr.curation.commentFields[type].map(field => field + ": " + JSON.stringify(String(note[field] ?? "")));
+    const headings = {
+        provenance: `Curation note on the provenance of *${note.taxonName}*`,
+        taxonomy: `Curation note on the taxonomy of *${note.taxonName}*`,
+        observation: `Curation note on a record of *${note.taxonName}*, ${note.recordId}` +
+            (note.lat ? `, correcting its position to ${note.lat}, ${note.long}` : "")
+    };
+    return `${headings[type]}, submitted from ${pageUrl}\n\n\`\`\`yaml\n${bioreportr.curation.marker}\n${lines.join("\n")}\n\`\`\`\n`;
+};
+
+/**
+ * Read the fields of the note held by a comment's body, as written by `bioreportr.curation.commentBody` - each line of
+ * its YAML block holding a field whose value is quoted as JSON.
+ * @param {String} body - The body of the comment
+ * @return {Object|null} The fields of the note, or null if the comment holds none
+ */
+bioreportr.curation.readCommentFields = function (body) {
+    const blocks = [...String(body || "").matchAll(/```ya?ml\r?\n([\s\S]*?)```/g)].map(match => match[1]);
+    const block = blocks.find(text => text.trim().startsWith(bioreportr.curation.marker));
+    const read = value => {
+        let togo = value;
+        try {
+            togo = JSON.parse(value);
+        } catch (error) {
+            togo = value;
+        }
+        return togo;
+    };
+    return block ? Object.fromEntries(block.split(/\r?\n/).map(line => line.match(/^(\w+):\s*(.*)$/)).filter(match => match)
+        .map(match => [match[1], String(read(match[2].trim()))])) : null;
+};
+
+/** Notes, consolidated and pending **/
+
+/**
+ * The key in local storage of a project's pending notes - each project's notes are kept apart, should two share an origin.
+ * @param {Object} config - The contents of the project's curation config.json
+ * @return {String} The key
+ */
+bioreportr.curation.storageKey = config => "bioreportr-curation-claims:" + (config.repository || "local");
+
+/**
+ * Read the pending notes held in local storage.
+ * @param {Window} window - The window
+ * @param {String} storageKey - The key of the notes in local storage
+ * @param {Number} [pendingVersion] - Advanced whenever the notes are written, so that they are read again
+ * @return {Object<String, CurationNote>} The notes, by claim id
+ */
+bioreportr.curation.readPending = function (window, storageKey, pendingVersion) { // eslint-disable-line no-unused-vars
+    let togo = {};
+    try {
+        togo = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+    } catch (error) {
+        togo = {};
+    }
+    return togo;
+};
+
+/**
+ * Write the pending notes into local storage.
+ * @param {Window} window - The window
+ * @param {String} storageKey - The key of the notes in local storage
+ * @param {Object<String, CurationNote>} pending - The notes, by claim id
+ */
+bioreportr.curation.writePending = function (window, storageKey, pending) {
+    try {
+        window.localStorage.setItem(storageKey, JSON.stringify(pending));
+    } catch (error) {
+        console.error("Could not keep the curation note in local storage", error);
+    }
+};
+
+/**
+ * Determine the claims which have been consolidated - those of claimStatus.json, together with any in taxa.csv or
+ * observations.csv. A claim's status in claimStatus.json is "consolidated" - any other status is not yet counted.
+ * @param {Object<String, String>} claimStatus - The contents of claimStatus.json
+ * @param {CurationNote[]} taxonRows - The rows of taxa.csv
+ * @param {CurationNote[]} observationRows - The rows of observations.csv
+ * @return {Set<String>} The ids of the claims consolidated
+ */
+bioreportr.curation.consolidatedClaims = function (claimStatus, taxonRows, observationRows) {
+    return new Set([...Object.keys(claimStatus || {}).filter(claimId => claimStatus[claimId]),
+        ...taxonRows.map(row => row.claimId), ...observationRows.map(row => row.claimId)]);
+};
+
+/**
+ * Index the notes of some types by their subjects - those consolidated, and those pending locally whose claims are not
+ * yet consolidated. A pending note displaces its author's consolidated note on the same subject, since it will
+ * replace it.
+ * @param {CurationNote[]} rows - The consolidated notes
+ * @param {Object<String, CurationNote>} pending - The pending notes, by claim id
+ * @param {Set<String>} consolidated - The ids of the claims consolidated
+ * @param {String[]} types - The types of note indexed
+ * @param {Function} keyOf - Accepts a note and returns the key by which it is indexed
+ * @return {Object<String, CurationNote[]>} The notes, by key, most recent first
+ */
+bioreportr.curation.indexNotes = function (rows, pending, consolidated, types, keyOf) {
+    const typed = note => ({...note, type: bioreportr.curation.noteType(note)});
+    const pendingNotes = Object.values(pending).map(typed)
+        .filter(note => types.includes(note.type) && !consolidated.has(note.claimId)).map(note => ({...note, pending: true}));
+    const authored = note => bioreportr.curation.subjectKey(note) + "|" + note.author;
+    const displaced = new Set(pendingNotes.map(authored));
+    const togo = {};
+    [...rows.map(typed).filter(row => !displaced.has(authored(row))), ...pendingNotes].forEach(note => {
+        (togo[keyOf(note)] ||= []).push(note);
+    });
+    Object.values(togo).forEach(notes => notes.sort((a, b) => String(b.submitted).localeCompare(String(a.submitted))));
+    return togo;
+};
+
+/**
+ * Index the notes on every taxon, of both types, by taxon id.
+ * @param {CurationNote[]} rows - The rows of taxa.csv
+ * @param {Object<String, CurationNote>} pending - The pending notes, by claim id
+ * @param {Set<String>} consolidated - The ids of the claims consolidated
+ * @return {Object<String, CurationNote[]>} The notes of each taxon, by taxon id, most recent first
+ */
+bioreportr.curation.byTaxon = function (rows, pending, consolidated) {
+    return bioreportr.curation.indexNotes(rows, pending, consolidated, bioreportr.curation.taxonTypes, note => note.taxonId);
+};
+
+/**
+ * Index the notes on every observation, by record id.
+ * @param {CurationNote[]} rows - The rows of observations.csv
+ * @param {Object<String, CurationNote>} pending - The pending notes, by claim id
+ * @param {Set<String>} consolidated - The ids of the claims consolidated
+ * @return {Object<String, CurationNote[]>} The notes of each observation, by record id, most recent first
+ */
+bioreportr.curation.byObservation = function (rows, pending, consolidated) {
+    return bioreportr.curation.indexNotes(rows.map(row => ({...row, type: "observation"})), pending, consolidated, ["observation"],
+        note => note.recordId);
+};
+
+/**
+ * The notes of one type amongst some notes.
+ * @param {CurationNote[]} notes - The notes
+ * @param {String} type - The type
+ * @return {CurationNote[]} The notes of that type
+ */
+bioreportr.curation.ofType = (notes, type) => notes.filter(note => bioreportr.curation.noteType(note) === type);
+
+/**
+ * Drop from local storage the pending notes whose claims have been consolidated. Deferred, since an effect may not
+ * write signals.
+ * @param {bioreportr.curation} that - The curation component, whose `pendingVersion` is advanced if any is dropped
+ * @param {Object<String, CurationNote>} pending - The pending notes, by claim id
+ * @param {Set<String>} consolidated - The ids of the claims consolidated
+ * @param {Window} window - The window
+ */
+bioreportr.curation.prune = function (that, pending, consolidated, window) {
+    const dropped = Object.keys(pending).filter(claimId => consolidated.has(claimId));
+    if (dropped.length > 0) {
+        const kept = Object.fromEntries(Object.entries(pending).filter(([claimId]) => !consolidated.has(claimId)));
+        bioreportr.curation.writePending(window, that.storageKey, kept);
+        fluid.invokeLater(() => that.pendingVersion++);
+    }
+};
+
+/**
+ * Check, once the user is signed in, that the comments of their pending notes are still on GitHub, and drop from local
+ * storage any note whose comment has gone - deleted by its author on GitHub, or with its thread, before it could be
+ * consolidated. Otherwise such a note would be shown, as being processed, for ever. A note is dropped only when GitHub
+ * reports its comment not to exist: one which can't be checked, e.g. since GitHub can't be reached, is kept, to be
+ * checked when the page is next loaded. Runs when the page starts and when the user signs in, rather than whenever the
+ * pending notes change, since a note just submitted has no need of it.
+ * @param {bioreportr.curation} that - The curation component, whose `pendingVersion` is advanced if any is dropped
+ * @param {Object} backend - The backend, checking comments if it has `missingComments`
+ * @param {String|null} token - The user's token, if signed in
+ * @param {Window} window - The window
+ */
+bioreportr.curation.verifyPending = function (that, backend, token, window) {
+    const pending = fluid.cell.untracked(() => that.pending);
+    // Notes kept before comments' ids were kept with them can't be checked reliably, so are left to be consolidated
+    const notes = Object.values(pending || {}).filter(note => note.commentId);
+    if (token && backend.missingComments && notes.length > 0) {
+        backend.missingComments(token, notes).then(missing => {
+            if (missing.length > 0) {
+                const current = bioreportr.curation.readPending(window, that.storageKey);
+                missing.forEach(claimId => delete current[claimId]);
+                bioreportr.curation.writePending(window, that.storageKey, current);
+                that.pendingVersion++;
+            }
+        }, error => {
+            console.error("Could not check the comments of pending curation notes", error);
+        });
+    }
+};
+
+/**
+ * Summarise the notes on the provenance of a taxon - the number of each answer to each question.
+ * @param {CurationNote[]} notes - The notes on the provenance of the taxon
+ * @return {Object<String, Object<String, Number>>} For each question, the count of each answer
+ */
+bioreportr.curation.tally = function (notes) {
+    return Object.fromEntries(bioreportr.curation.questions.map(([question]) => [question,
+        Object.fromEntries(bioreportr.curation.votes.map(vote => [vote, notes.filter(note => note[question] === vote).length]))]));
+};
+
+/**
+ * Render the tally of the votes on a taxon, as a row of each question with the counts of its answers.
+ * @param {CurationNote[]} notes - The notes on the provenance of the taxon
+ * @return {String} The markup of the tally
+ */
+bioreportr.curation.tallyMarkup = function (notes) {
+    const tally = bioreportr.curation.tally(notes);
+    return `<div class="mxcw-curation-tally">${bioreportr.curation.questions.map(([question, label]) => `
+        <span class="mxcw-curation-tally-question">${label}</span>
+        ${bioreportr.curation.votes.map(vote => `<span class="mxcw-curation-tally-count" title="${vote}">${vote} ${tally[question][vote]}</span>`).join("")}`).join("")}</div>`;
+};
+
+/**
+ * Render the votes on a taxon in brief, for a tooltip - for each question, only the answers given, e.g.
+ * "Present: yes", or "Present: yes 2, no 1" once several people have answered. Answers of "no opinion" are left out,
+ * as is a question with no other answer.
+ * @param {CurationNote[]} notes - The notes on the provenance of the taxon
+ * @return {String} The markup of the votes, or the empty string if none has been given
+ */
+bioreportr.curation.briefTallyMarkup = function (notes) {
+    const tally = bioreportr.curation.tally(notes);
+    const rows = bioreportr.curation.questions.map(([question, label]) => {
+        const given = bioreportr.curation.votes.filter(vote => vote !== "no opinion" && tally[question][vote] > 0);
+        const answers = given.map(vote => notes.length > 1 ? `${vote} ${tally[question][vote]}` : vote).join(", ");
+        return given.length > 0 ? `<div><span class="mxcw-curation-tally-question">${label}:</span> ${answers}</div>` : "";
+    }).join("");
+    return rows ? `<div class="mxcw-curation-brief">${rows}</div>` : "";
+};
+
+/** The speech bubbles of the checklist **/
+
+/**
+ * Render a checklist's tree, as `hortis.checklist.renderTree` does, with a speech bubble beside each taxon's name
+ * leading to the curation of that taxon - shown on hovering over the taxon, and always if it has notes. Clicks and
+ * hovers on the bubbles are handled here, and others passed to the checklist's own handlers.
+ * @param {hortis.checklist} that - The checklist
+ * @param {ChecklistEntry} rootEntry - The root entry
+ * @param {Object<String, RowState>} idToState - Map of taxon id to row state
+ * @param {String|null} selectedId - The id of the currently selected taxon, if any
+ * @param {Object<String, CurationNote[]>} byTaxon - The notes of each taxon, by taxon id
+ * @return {VNode} The tree to be rendered
+ */
+bioreportr.curation.renderChecklistTree = function (that, rootEntry, idToState, selectedId, byTaxon) {
+    const options = {
+        simple: !!that.filterRanks,
+        selectable: that.selectable,
+        unfoldable: that.unfoldable,
+        decorate: that.decorate ? fluid.getGlobalValue(that.decorate) : null,
+        selectedId
+    };
+    const list = hortis.checklist.listNode(rootEntry.children, options, idToState);
+    if (list) {
+        bioreportr.curation.addBubbles(list, byTaxon);
+    }
+    const hover = "bioreportr.curation.checklistHover({0}, {checklist})";
+    const root = {tag: "div", attrs: {
+        "@onclick": "bioreportr.curation.checklistClick({0}, {checklist})",
+        "@onmouseover": hover,
+        "@onmousemove": hover,
+        "@onmouseleave": hover
+    }, children: list ? [fluid.markVerbatim(list)] : []};
+    return {tag: "fragment", children: [root]};
+};
+
+/**
+ * Place a speech bubble after the name of each taxon of a rendered list, and of the lists beneath it.
+ * @param {VNode} list - A `ul` rendered by `hortis.checklist.listNode`, modified in place
+ * @param {Object<String, CurationNote[]>} byTaxon - The notes of each taxon, by taxon id
+ */
+bioreportr.curation.addBubbles = function (list, byTaxon) {
+    list.children.forEach(item => {
+        const name = item.children.find(child => child.tag === "p" && child.attrs?.["data-row-id"]);
+        if (name) {
+            const id = name.attrs["data-row-id"];
+            const noted = !!byTaxon[id];
+            const bubble = {tag: "span", attrs: {
+                "class": "mxcw-curation-bubble" + (noted ? " mxcw-curation-noted" : ""),
+                "data-curation-id": id,
+                "role": "button",
+                "aria-label": noted ? "Community notes on this taxon" : "Add a community note on this taxon"
+            }, children: []};
+            const sublist = item.children.findIndex(child => child.tag === "ul");
+            item.children.splice(sublist === -1 ? item.children.length : sublist, 0, bubble);
+            if (sublist !== -1) {
+                bioreportr.curation.addBubbles(item.children[sublist + 1], byTaxon);
+            }
+        }
+    });
+};
+
+/**
+ * Handle a click within a checklist - on a speech bubble, which pins the summary of its taxon's notes where it is, so
+ * that the pointer can move into it, to follow its link to the curation pane or to copy its text, or else as the
+ * checklist itself does. A pinned summary is dismissed by a press outside it - see `bioreportr.curation.pinDismiss`.
+ * @param {Event} event - The click
+ * @param {hortis.checklist} checklist - The checklist
+ */
+bioreportr.curation.checklistClick = function (event, checklist) {
+    const bubble = event.target.closest(".mxcw-curation-bubble");
+    if (bubble) {
+        const id = bioreportr.curation.hoverPrefix + bubble.dataset.curationId;
+        checklist.curationPin = id;
+        checklist.hoverAt(id, event);
+    } else {
+        hortis.checklist.click(event, checklist);
+    }
+};
+
+/**
+ * Mark the checklist's tooltip as pinned, or not, so that it takes the pointer, and route a click on its link to the
+ * curation pane.
+ * @param {hortis.checklist} checklist - The checklist
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {TooltipRecord} tooltip - The checklist's tooltip
+ * @param {String|null} pin - The hover id of the pinned summary, or null if none is pinned
+ */
+bioreportr.curation.pinTooltip = function (checklist, storyPage, tooltip, pin) {
+    tooltip.node.classList.toggle("mxcw-tip-pinned", !!pin);
+    tooltip.node.onclick = event => {
+        const link = event.target.closest?.("[data-curation-open]");
+        if (link) {
+            event.preventDefault();
+            checklist.curationPin = null;
+            checklist.hoverAt(null);
+            bioreportr.curation.open(storyPage, link.dataset.curationOpen);
+        }
+    };
+};
+
+/**
+ * Dismiss a pinned summary when the pointer is pressed outside it. A press on a speech bubble is left to its click,
+ * which pins that bubble's summary instead.
+ * @param {hortis.checklist} checklist - The checklist
+ * @param {PointerPressRecord|null} press - The most recent press of the pointer, as held in `fluid.globalDismissalSignal`
+ * @param {TooltipRecord} tooltip - The checklist's tooltip
+ */
+bioreportr.curation.pinDismiss = function (checklist, press, tooltip) {
+    // Whether a summary is pinned is consulted rather than depended upon - pinning one is no reason to look again at the
+    // press which pinned it
+    if (press && fluid.cell.untracked(() => checklist.curationPin) && !tooltip.node.contains(press.target) &&
+        !press.target.closest?.(".mxcw-curation-bubble")) {
+        checklist.curationPin = null;
+        checklist.hoverAt(null);
+    }
+};
+
+/**
+ * Show a tooltip summarising the notes of a taxon whose speech bubble is under the pointer, or else that of the taxon
+ * whose name is under it, as the checklist itself does - unless a summary is pinned.
+ * @param {Event} event - A mouse event within the checklist
+ * @param {hortis.checklist} checklist - The checklist
+ */
+bioreportr.curation.checklistHover = function (event, checklist) {
+    // A pinned summary stays as it is, whatever the pointer passes over, until it is dismissed
+    if (!fluid.cell.untracked(() => checklist.curationPin)) {
+        const bubble = event.type === "mouseleave" ? null : event.target.closest?.(".mxcw-curation-bubble");
+        if (bubble) {
+            checklist.hoverAt(bioreportr.curation.hoverPrefix + bubble.dataset.curationId, event);
+        } else {
+            hortis.checklist.hover(event, checklist);
+        }
+    }
+};
+
+// The prefix of the hover id of a speech bubble, distinguishing it from that of a taxon's name
+bioreportr.curation.hoverPrefix = "curation:";
+
+/**
+ * Render the tooltip of a checklist - for a speech bubble, a condensed summary of its taxon's notes, or else that of a
+ * taxon.
+ * @param {Object<String, TaxonRow>} rowById - The taxa, by id
+ * @param {Object<String, CurationNote[]>} byTaxon - The notes of each taxon, by taxon id
+ * @param {String} hoverId - The hover id, of a bubble or a taxon
+ * @return {String|null} The markup of the tooltip
+ */
+bioreportr.curation.renderChecklistTooltip = function (rowById, byTaxon, hoverId) {
+    const prefix = bioreportr.curation.hoverPrefix;
+    return String(hoverId).startsWith(prefix) ? bioreportr.curation.summaryMarkup(rowById[hoverId.substring(prefix.length)],
+        byTaxon[hoverId.substring(prefix.length)] || []) : hortis.renderTaxonTooltip(rowById, hoverId);
+};
+
+/**
+ * Render a condensed summary of the notes on a taxon - their number, the votes given and the latest comments - ending
+ * with a link to the curation pane, which may be followed once the summary is pinned.
+ * @param {TaxonRow} taxon - The taxon
+ * @param {CurationNote[]} notes - Its notes, most recent first
+ * @return {String} The markup of the summary
+ */
+bioreportr.curation.summaryMarkup = function (taxon, notes) {
+    const encode = hortis.dataTable.encode;
+    const name = taxon ? encode(hortis.rowToScientific(taxon)) : "";
+    const comments = notes.filter(note => note.comment).slice(0, 3).map(note =>
+        `<li><b>${encode(note.author)}</b>${bioreportr.curation.noteType(note) === "taxonomy" ? " on taxonomy" : ""}: ` +
+        `${encode(note.comment.length > 140 ? note.comment.substring(0, 140) + "…" : note.comment)}</li>`).join("");
+    const body = notes.length > 0 ? `${bioreportr.curation.briefTallyMarkup(bioreportr.curation.ofType(notes, "provenance"))}${comments ? `<ul class="mxcw-tip-list mxcw-curation-comments">${comments}</ul>` : ""}` :
+        "<div class=\"mxcw-tip-note\">No community notes yet</div>";
+    return `<div class="mxcw-cell-tip mxcw-curation-tip">
+        <div class="mxcw-tip-title"><i>${name}</i> <span>${bioreportr.cellTooltip.plural(notes.length, "note")}</span></div>
+        ${body}
+        <a class="mxcw-curation-tip-action" href="#" data-curation-open="${taxon ? encode(taxon.id) : ""}">Click here to add your own curation note</a>
+    </div>`;
+};
+
+/**
+ * Find the pane of a story holding its curation - the one whose section is rendered by `bioreportr.curationPane`.
+ * @param {PaneSettings[]} panes - The panes of the story
+ * @return {String|null} The pane's key, or null if the story has none
+ */
+bioreportr.curation.paneKey = function (panes) {
+    return panes.find(pane => pane.paneComponent === "bioreportr.curationPane")?.paneKey ?? null;
+};
+
+/**
+ * Open the curation of a taxon - the story's curation pane, with the taxon chosen in the checklist's search, so that
+ * the map and records show the taxon.
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {String} taxonId - The id of the taxon
+ */
+bioreportr.curation.open = function (storyPage, taxonId) {
+    const paneKey = bioreportr.curation.paneKey(storyPage.panes);
+    if (paneKey) {
+        storyPage.checklist.search.select(taxonId);
+        storyPage.selectPane(paneKey);
+    }
+};
+
+/**
+ * Open the curation of an observation - the story's curation pane, with the observation selected, as on the map, and
+ * its taxon chosen in the checklist's search, so that the map and records show the taxon's records. The observation's
+ * selection is kept as the pane changes - see `bioreportr.storyPage.clearRecordOnPaneChange`.
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {String} recordId - The id of the observation, as computed by `hortis.libreMap.recordId`
+ */
+bioreportr.curation.openRecord = function (storyPage, recordId) {
+    const paneKey = bioreportr.curation.paneKey(storyPage.panes);
+    const selector = storyPage.map.recordSelector;
+    const row = selector.recordIndex.byId.get(recordId);
+    if (paneKey && row) {
+        bioreportr.storyPage.keepRecord.set(storyPage, recordId);
+        storyPage.checklist.search.select(String(hortis.rowToLinkTaxonId(row)));
+        storyPage.selectPane(paneKey);
+        selector.filterState = recordId;
+    }
+};
+
+/**
+ * The observation chosen for curation - the record selected, on the map or in a table of records, whilst the curation
+ * pane is shown.
+ * @param {PaneSettings} activePane - The pane shown
+ * @param {String|null} recordId - The id of the record selected, if any
+ * @param {Object|null} row - The record selected, if any
+ * @return {Object|null} The observation chosen for curation, with members `recordId` and `row`, if any
+ */
+bioreportr.curation.chosenObservation = function (activePane, recordId, row) {
+    return activePane.paneComponent === "bioreportr.curationPane" && row ? {recordId, row} : null;
+};
+
+/** The speech bubbles of the tables of records **/
+
+// The column of a table of records holding the speech bubble of each record
+bioreportr.curation.bubbleColumn = {key: "", label: "", width: "1.75em", formatter: "bioreportr.curation.recordBubbleCell"};
+
+/**
+ * Determine the columns of a table of records, as `hortis.dataTable.resolveColumns` does, with the speech bubbles first.
+ * @param {Object[]} rows - The rows
+ * @param {Object[]} columns - The configured columns
+ * @return {Object[]} The columns
+ */
+bioreportr.curation.recordTableColumns = function (rows, columns) {
+    return [bioreportr.curation.bubbleColumn, ...hortis.dataTable.resolveColumns(rows, columns)];
+};
+
+// What `bioreportr.curation.recordBubbleCell` needs of the table being rendered, held only whilst it is rendered by
+// `bioreportr.curation.recordTableBody`, since a column's formatter is given only the cell's value and row
+bioreportr.curation.cellContext = null;
+
+/**
+ * Render the body of a table of records, as `hortis.dataTable.bodyMarkup` does, with a speech bubble beside each
+ * record leading to its curation - shown on hovering over the record, and always if it has notes.
+ * @param {Object[]} rows - The rows in their displayed order
+ * @param {Object[]} columns - The columns, beginning with `bioreportr.curation.bubbleColumn`
+ * @param {Object} window - The window of rows rendered
+ * @param {Number} rowHeight - The height of a row, in pixels
+ * @param {Boolean} rowSelectable - Whether a row may be selected
+ * @param {Object|null} selectedRow - The selected row, if any
+ * @param {Object<String, CurationNote[]>} byObservation - The notes of each observation, by record id
+ * @param {Object} recordIndex - The index of every observation, as computed by `hortis.libreMap.recordIndex`
+ * @return {String} The markup of the body's rows
+ */
+bioreportr.curation.recordTableBody = function (rows, columns, window, rowHeight, rowSelectable, selectedRow, byObservation, recordIndex) {
+    bioreportr.curation.cellContext = {byObservation, recordIndex};
+    try {
+        return hortis.dataTable.bodyMarkup(rows, columns, window, rowHeight, rowSelectable, selectedRow);
+    } finally {
+        bioreportr.curation.cellContext = null;
+    }
+};
+
+/**
+ * Render the speech bubble of a record, as the formatter of `bioreportr.curation.bubbleColumn`. It is a button, so
+ * that clicking it doesn't select the record's row.
+ * @param {Any} value - The cell's value, which is unused
+ * @param {Object} row - The record
+ * @return {String} The markup of the bubble
+ */
+bioreportr.curation.recordBubbleCell = function (value, row) {
+    const context = bioreportr.curation.cellContext;
+    const recordId = context?.recordIndex.ids.get(row);
+    const count = recordId ? (context.byObservation[recordId] || []).length : 0;
+    const title = count > 0 ? bioreportr.cellTooltip.plural(count, "community note") + " on this record - click to see or add yours" :
+        "Correct where this record was made, or add a note on it";
+    return recordId ? `<button type="button" class="mxcw-curation-bubble mxcw-curation-record-bubble${count > 0 ? " mxcw-curation-noted" : ""}"` +
+        ` data-curation-record="${hortis.dataTable.encode(recordId)}" title="${title}" aria-label="${title}"></button>` : "";
+};
+
+/**
+ * Handle a click within a table of records - on a speech bubble, which opens the curation of its record.
+ * @param {Event} event - The click
+ * @param {bioreportr.storyPage} storyPage - The story page
+ */
+bioreportr.curation.recordTableClick = function (event, storyPage) {
+    const bubble = event.target.closest?.("[data-curation-record]");
+    if (bubble) {
+        bioreportr.curation.openRecord(storyPage, bubble.dataset.curationRecord);
+    }
+};
+
+/**
+ * The taxon chosen for curation - that chosen in the checklist's search, whilst the curation pane is shown. The search's
+ * state, when decoded from the URL, holds only the taxon's id, so the taxon's row is looked up.
+ * @param {PaneSettings} activePane - The pane shown
+ * @param {Object|null} chosen - The state of the checklist's search - the taxon chosen, or an object holding its `id`
+ * @param {Object<String, TaxonRow>} rowById - The taxa, by id
+ * @return {TaxonRow|null} The taxon chosen for curation, if any
+ */
+bioreportr.curation.chosenTaxon = function (activePane, chosen, rowById) {
+    return activePane.paneComponent === "bioreportr.curationPane" && chosen ? rowById[chosen.id] || null : null;
+};
+
+/** Signing in and submission **/
+
+/**
+ * Determine whether a story's curation is connected to somewhere to submit its notes.
+ * @param {Object} config - The contents of the project's curation config.json
+ * @return {Boolean} `true` if notes may be submitted
+ */
+bioreportr.curation.isConnected = function (config) {
+    return config.backend === "memory" || !!(config.repository && config.repositoryId && config.categoryId && config.oauthEndpoint);
+};
+
+/**
+ * Create the backend submitting a story's notes, as named by the `backend` of its configuration.
+ * @param {Object} config - The contents of the project's curation config.json
+ * @param {Window} window - The window
+ * @return {Object} The backend, as created by one of `bioreportr.curation.backends`
+ */
+bioreportr.curation.makeBackend = function (config, window) {
+    const make = bioreportr.curation.backends[config.backend || "github"];
+    return make(config, window);
+};
+
+/**
+ * Read the user's token from local storage.
+ * @param {String} tokenKey - The key of the token in local storage
+ * @param {Number} tokenVersion - Advanced whenever the token is written, so that it is read again
+ * @param {Window} window - The window
+ * @return {String|null} The token, if the user has signed in
+ */
+bioreportr.curation.readToken = function (tokenKey, tokenVersion, window) {
+    let token = null;
+    try {
+        token = window.localStorage.getItem(tokenKey);
+    } catch (error) {
+        token = null;
+    }
+    return token;
+};
+
+/**
+ * Take up a session returned to the page after signing in, exchanging it for the user's token, which is kept in local
+ * storage. The session is removed from the page's URL.
+ * @param {bioreportr.curation} that - The curation component, whose `tokenVersion` is advanced once the token is kept
+ * @param {Object} backend - The backend
+ * @param {Window} window - The window
+ */
+bioreportr.curation.takeSession = function (that, backend, window) {
+    // Nothing to take up where there is no browser, e.g. under hydrate.js
+    const url = window.location ? new window.URL(window.location.href) : null;
+    const session = url?.searchParams.get("curation_session");
+    if (session && backend.exchangeSession) {
+        url.searchParams.delete("curation_session");
+        window.history.replaceState(window.history.state, "", url.toString());
+        backend.exchangeSession(session).then(token => {
+            window.localStorage.setItem(that.tokenKey, token);
+            that.tokenVersion++;
+        }, error => {
+            that.status = "Signing in to GitHub failed: " + error.message;
+        });
+    }
+};
+
+/**
+ * Look up the user signed in, writing it into the component's `viewer`.
+ * @param {bioreportr.curation} that - The curation component
+ * @param {Object} backend - The backend
+ * @param {String|null} token - The user's token, if signed in
+ */
+bioreportr.curation.loadViewer = function (that, backend, token) {
+    if (token || backend.alwaysSignedIn) {
+        backend.viewer(token).then(viewer => {
+            that.viewer = viewer;
+        }, error => {
+            // A token which GitHub no longer accepts, e.g. one revoked or expired, is forgotten
+            console.error("Could not look up the user signed in to GitHub", error);
+            that.signOut();
+        });
+    } else {
+        fluid.invokeLater(() => that.viewer = null);
+    }
+};
+
+bioreportr.curation.signIn = function (backend, window) {
+    backend.signIn(window.location.href);
+};
+
+bioreportr.curation.signOut = function (that, window) {
+    try {
+        window.localStorage.removeItem(that.tokenKey);
+    } catch (error) {
+        // Nothing to forget
+    }
+    that.viewer = null;
+    that.tokenVersion++;
+};
+
+/**
+ * Submit a note on a taxon or an observation, displacing the user's earlier note on the same subject. The note is
+ * allocated a claim id and kept in local storage, so that it is shown at once, as if it were consolidated.
+ * @param {bioreportr.curation} that - The curation component
+ * @param {String} type - The type of the note, one of the `bioreportr.curation.types`
+ * @param {Object} subject - What the note is on, with members `taxonId` and `taxonName`, and `recordId` for an observation
+ * @param {Object} answers - The answers of the form - `comment`, and for provenance a member for each question, and
+ * for an observation the `lat` and `long` of its corrected position, if any
+ * @param {Window} window - The window
+ * @return {Promise} Resolving once the note has been submitted
+ */
+bioreportr.curation.submit = async function (that, type, subject, answers, window) {
+    const note = {
+        claimId: bioreportr.curation.nanoid(window.crypto),
+        type,
+        taxonId: String(subject.taxonId),
+        taxonName: subject.taxonName,
+        ...type === "observation" ? {recordId: subject.recordId, lat: answers.lat ?? "", long: answers.long ?? ""} : {},
+        author: that.viewer.login,
+        submitted: new Date().toISOString(),
+        ...type === "provenance" ? Object.fromEntries(bioreportr.curation.questions.map(([question]) => [question, answers[question] || "no opinion"])) : {},
+        comment: (answers.comment || "").trim(),
+        url: ""
+    };
+    that.status = "Submitting your note ...";
+    try {
+        const hash = fluid.hashManager.render({pane: that.paneKey, taxon: note.taxonId, record: note.recordId});
+        const pageUrl = window.location.origin + window.location.pathname + hash;
+        const comment = await that.backend.submit(that.token, note, bioreportr.curation.commentBody(note, pageUrl));
+        const pending = bioreportr.curation.readPending(window, that.storageKey);
+        // Only one note on each subject is kept, as the one submitted displaces the earlier
+        const subject = bioreportr.curation.subjectKey(note);
+        Object.keys(pending).filter(claimId => bioreportr.curation.subjectKey(pending[claimId]) === subject).forEach(claimId => delete pending[claimId]);
+        pending[note.claimId] = {...note, url: comment.url || "", commentId: comment.id || ""};
+        bioreportr.curation.writePending(window, that.storageKey, pending);
+        that.pendingVersion++;
+        that.status = "";
+    } catch (error) {
+        console.error("Could not submit the curation note", error);
+        that.status = "Your note could not be submitted: " + error.message;
+    }
+};
+
+/** Backends **/
+
+/**
+ * A backend holding notes as comments on GitHub Discussions, posted as the signed-in user through GitHub's GraphQL API,
+ * one thread per taxon in a category of the project's repository, as giscus does. A taxon's thread holds every type of
+ * note - on its provenance, its taxonomy and its observations. Signing in goes through the token
+ * exchange named by the configuration's `oauthEndpoint` - see src/curation/oauthWorker.mjs and
+ * notes/curation-token-exchange.md.
+ * @param {Object} config - The contents of the project's curation config.json
+ * @param {Window} window - The window
+ * @return {Object} The backend
+ */
+bioreportr.curation.backends.github = function (config, window) {
+    const endpoint = (config.oauthEndpoint || "").replace(/\/$/, "");
+    const graphql = async function (token, query, variables) {
+        const response = await window.fetch("https://api.github.com/graphql", {
+            method: "POST",
+            headers: {"Authorization": "bearer " + token, "Content-Type": "application/json"},
+            body: JSON.stringify({query, variables})
+        });
+        const result = await response.json();
+        if (!response.ok || result.errors) {
+            throw new Error(result.errors ? result.errors.map(error => error.message).join("; ") : response.status + " " + response.statusText);
+        }
+        return result.data;
+    };
+    const threadTitle = note => "taxon:" + note.taxonId + " " + note.taxonName;
+    const findThread = async function (token, taxonId) {
+        const query = `repo:${config.repository} in:title "taxon:${taxonId}"`;
+        const data = await graphql(token, `query($query: String!) {
+            search(type: DISCUSSION, query: $query, first: 20) { nodes { ... on Discussion { id title category { id } } } }
+        }`, {query});
+        return data.search.nodes.find(node => node.category?.id === config.categoryId && node.title.split(" ")[0] === "taxon:" + taxonId);
+    };
+    /**
+     * Find which of some notes' comments no longer exist on GitHub, in one query, looking each up by its node id. Only a
+     * comment which GitHub reports as not found is counted as missing.
+     * @param {String} token - The user's token
+     * @param {CurationNote[]} notes - The notes, each with its `commentId`
+     * @return {Promise<String[]>} The claim ids of the notes whose comments are missing
+     */
+    const missingComments = async function (token, notes) {
+        const fields = notes.map((note, i) => `n${i}: node(id: $n${i}) { id }`);
+        const params = notes.map((note, i) => `$n${i}: ID!`);
+        const variables = Object.fromEntries(notes.map((note, i) => ["n" + i, note.commentId]));
+        const response = await window.fetch("https://api.github.com/graphql", {
+            method: "POST",
+            headers: {"Authorization": "bearer " + token, "Content-Type": "application/json"},
+            body: JSON.stringify({query: `query(${params.join(", ")}) { ${fields.join(" ")} }`, variables})
+        });
+        const result = await response.json();
+        if (!response.ok || !result.data) {
+            throw new Error(result.errors ? result.errors.map(error => error.message).join("; ") : response.status + " " + response.statusText);
+        }
+        // A node which is gone is returned as null, with an error of type NOT_FOUND naming it in its path
+        const notFound = new Set((result.errors || []).filter(error => error.type === "NOT_FOUND").map(error => error.path?.[0]));
+        return notes.filter((note, i) => notFound.has("n" + i) && result.data["n" + i] === null).map(note => note.claimId);
+    };
+    return {
+        missingComments,
+        signIn: redirect => {
+            window.location.href = endpoint + "/authorize?redirect_uri=" + encodeURIComponent(redirect);
+        },
+        exchangeSession: async function (session) {
+            const response = await window.fetch(endpoint + "/token", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({session})
+            });
+            const result = await response.json();
+            if (!response.ok || !result.token) {
+                throw new Error(result.error || response.statusText);
+            }
+            return result.token;
+        },
+        viewer: async function (token) {
+            const data = await graphql(token, "query { viewer { login avatarUrl url } }", {});
+            return data.viewer;
+        },
+        submit: async function (token, note, body) {
+            let thread = await findThread(token, note.taxonId);
+            if (!thread) {
+                const created = await graphql(token, `mutation($input: CreateDiscussionInput!) {
+                    createDiscussion(input: $input) { discussion { id } }
+                }`, {input: {repositoryId: config.repositoryId, categoryId: config.categoryId, title: threadTitle(note),
+                    body: `Community curation notes on *${note.taxonName}* - on its provenance, its taxonomy and its records. Each comment is one person's note, submitted from the site.`}});
+                thread = created.createDiscussion.discussion;
+            } else {
+                // Displace the user's earlier notes on the same subject - the same type of note on the taxon, or the same observation
+                const data = await graphql(token, `query($id: ID!) {
+                    node(id: $id) { ... on Discussion { comments(first: 100) { nodes { id viewerDidAuthor body } } } }
+                }`, {id: thread.id});
+                const subject = bioreportr.curation.subjectKey(note);
+                const earlier = data.node.comments.nodes.filter(comment => {
+                    const fields = comment.viewerDidAuthor ? bioreportr.curation.readCommentFields(comment.body) : null;
+                    return fields && bioreportr.curation.subjectKey(fields) === subject;
+                });
+                for (const comment of earlier) {
+                    await graphql(token, `mutation($id: ID!) { deleteDiscussionComment(input: {id: $id}) { comment { id } } }`, {id: comment.id});
+                }
+            }
+            const added = await graphql(token, `mutation($id: ID!, $body: String!) {
+                addDiscussionComment(input: {discussionId: $id, body: $body}) { comment { id url } }
+            }`, {id: thread.id, body});
+            return added.addDiscussionComment.comment;
+        }
+    };
+};
+
+/**
+ * A backend keeping notes only in the browser, for trying the curation pane without GitHub, e.g. in testing. Its user
+ * is always signed in, as the configuration's `memoryUser`, or else "local-user".
+ * @param {Object} config - The contents of the project's curation config.json
+ * @return {Object} The backend
+ */
+bioreportr.curation.backends.memory = function (config) {
+    return {
+        alwaysSignedIn: true,
+        signIn: () => {},
+        viewer: () => Promise.resolve({login: config.memoryUser || "local-user", avatarUrl: "", url: ""}),
+        submit: (token, note, body) => {
+            bioreportr.curation.backends.memory.submitted.push({note, body});
+            return Promise.resolve({id: note.claimId, url: ""});
+        }
+    };
+};
+
+// The comments submitted to the memory backend, for inspection in testing
+bioreportr.curation.backends.memory.submitted = [];
+
+/** The form of the curation pane **/
+/**
+ * The corrected position of an observation shown by the form - that to which the user has dragged its marker, or
+ * else that of their own note on it, if any.
+ * @param {String} recordId - The id of the observation
+ * @param {CurationNote|null} own - The user's own note on the observation, if any
+ * @param {Object|null} correction - The user's correction in the form, if any, with its `recordId`, and either `lat` and
+ * `long` or `cleared`
+ * @return {Object|null} The corrected position, with members `lat` and `long`, or null if it is uncorrected
+ */
+bioreportr.curationForm.position = function (recordId, own, correction) {
+    const ownPosition = own && own.lat !== "" && own.lat !== undefined ? {lat: +own.lat, long: +own.long} : null;
+    return correction?.recordId === recordId ? correction.cleared ? null : {lat: correction.lat, long: correction.long} : ownPosition;
+};
+
+/**
+ * Render a position for reading.
+ * @param {Object} position - The position, with members `lat` and `long`
+ * @return {String} The position, as latitude and longitude to 5 decimal places, about a metre
+ */
+bioreportr.curationForm.positionText = position => position.lat.toFixed(5) + ", " + position.long.toFixed(5);
+
+/**
+ * Compute what the curation form shows - of the observation chosen for curation, if any, or else of the taxon, of
+ * whose notes those of the type chosen by the form's tab are shown.
+ * @param {TaxonRow|null} taxon - The taxon chosen for curation, if any
+ * @param {Object|null} observation - The observation chosen for curation, if any, with members `recordId` and `row`
+ * @param {Object<String, TaxonRow>} rowById - The taxa, by id
+ * @param {Object<String, CurationNote[]>} byTaxon - The notes of each taxon, by taxon id
+ * @param {Object<String, CurationNote[]>} byObservation - The notes of each observation, by record id
+ * @param {Object|null} viewer - The user signed in, if any, with their `login`
+ * @param {Boolean} connected - Whether notes may be submitted
+ * @param {String} status - A message on the progress of a submission
+ * @param {String} tab - The type of note on a taxon chosen by the form's tab, "provenance" or "taxonomy"
+ * @param {Object|null} correction - The user's correction of the observation's position, if any - see
+ * `bioreportr.curationForm.position`
+ * @return {Object} The model of the form
+ */
+bioreportr.curationForm.model = function (taxon, observation, rowById, byTaxon, byObservation, viewer, connected, status, tab, correction) {
+    const row = observation?.row || null;
+    const subjectTaxon = row ? rowById[hortis.rowToLinkTaxonId(row)] || null : taxon;
+    const type = row ? "observation" : taxon ? tab : "none";
+    const taxonNotes = subjectTaxon ? byTaxon[subjectTaxon.id] || [] : [];
+    const notes = row ? byObservation[observation.recordId] || [] : bioreportr.curation.ofType(taxonNotes, type);
+    const authored = candidates => viewer ? candidates.find(note => note.author === viewer.login) || null : null;
+    const own = authored(notes);
+    const original = row && hortis.libreMap.hasCoords(row) ? {lat: +row.decimalLatitude, long: +row.decimalLongitude} : null;
+    const position = row ? bioreportr.curationForm.position(observation.recordId, own, correction) : null;
+    const taxonName = subjectTaxon ? hortis.rowToScientific(subjectTaxon) : row?.taxon_name || "";
+    // Keyed by subject, so that the controls are rendered afresh, discarding any unsubmitted choices, only for another
+    const key = "<!-- " + hortis.dataTable.encode(row ? observation.recordId : taxon?.id || "").replace(/--/g, "- -") + " -->";
+    const controls = row ? bioreportr.curationForm.observationControlsMarkup(own) :
+        taxon ? bioreportr.curationForm.taxonControlsMarkup(authored(bioreportr.curation.ofType(taxonNotes, "provenance")),
+            authored(bioreportr.curation.ofType(taxonNotes, "taxonomy"))) : "";
+    return {
+        hasSubject: !!(taxon || row),
+        type,
+        isTaxon: !row && !!taxon,
+        isObservation: !!row,
+        provenanceSelected: type === "provenance",
+        taxonomySelected: type === "taxonomy",
+        subject: {taxonId: subjectTaxon?.id ?? (row ? String(hortis.rowToLinkTaxonId(row)) : ""), taxonName, recordId: observation?.recordId},
+        recordId: observation?.recordId || "",
+        taxonName,
+        // As the taxon is named elsewhere - its scientific name, then its common name in brackets
+        displayName: subjectTaxon ? hortis.rowToScientific(subjectTaxon) + (subjectTaxon.commonName ? ` (${subjectTaxon.commonName})` : "") : "",
+        commonName: subjectTaxon?.commonName || "",
+        image: subjectTaxon ? hortis.renderTaxonImage(subjectTaxon.iNaturalistTaxonImage, subjectTaxon.id) : "",
+        recordedBy: row?.recordedBy || "Unknown",
+        eventDate: row?.eventDate || "Unknown",
+        locality: row?.locality || "",
+        recordLink: row ? hortis.libreMap.iNatLinkMarkup(row) : "",
+        originalText: original ? bioreportr.curationForm.positionText(original) : "None recorded",
+        position,
+        positionText: position ? bioreportr.curationForm.positionText(position) : "Not corrected",
+        corrected: !!position,
+        // Where the draggable marker stands - at the corrected position, or else on the record's own
+        markerPosition: row ? position || original : null,
+        pending: !!own?.pending,
+        controls: controls ? controls + key : "",
+        connected,
+        signedIn: connected && !!viewer,
+        signedOut: connected && !viewer,
+        viewerLogin: viewer?.login || "",
+        submitLabel: own ? "Replace your note" : "Submit your note",
+        status,
+        consensus: bioreportr.curationForm.consensusMarkup(type, notes)
+    };
+};
+
+/**
+ * Render the controls of the form for a taxon - a panel for each type of note, of which CSS shows only that of the tab
+ * chosen, so that choosing a tab keeps what has been entered in the other. Each shows the user's own note, if any.
+ * @param {CurationNote|null} ownProvenance - The user's own note on the provenance of the taxon, if any
+ * @param {CurationNote|null} ownTaxonomy - The user's own note on its taxonomy, if any
+ * @return {String} The markup of the controls
+ */
+bioreportr.curationForm.taxonControlsMarkup = function (ownProvenance, ownTaxonomy) {
+    const encode = hortis.dataTable.encode;
+    const heads = bioreportr.curation.votes.map(vote => `<span class="mxcw-curation-vote-head">${vote}</span>`).join("");
+    const rows = bioreportr.curation.questions.map(([question, label]) => `<span class="mxcw-curation-vote-label">${label}:</span>` +
+        bioreportr.curation.votes.map(vote => `<input type="radio" name="${question}" value="${vote}" aria-label="${label}: ${vote}"${(ownProvenance?.[question] || "no opinion") === vote ? " checked" : ""}>`).join("")).join("");
+    return `<div class="mxcw-curation-panel" data-type="provenance">
+        <fieldset class="mxcw-curation-vote"><legend>Vote</legend><div class="mxcw-curation-vote-grid"><span></span>${heads}${rows}</div></fieldset>
+        <fieldset class="mxcw-curation-comment"><legend>Comment</legend><textarea name="comment" rows="4" aria-label="Comment">${encode(ownProvenance?.comment || "")}</textarea></fieldset>
+    </div>
+    <div class="mxcw-curation-panel" data-type="taxonomy">
+        <fieldset class="mxcw-curation-comment"><legend>Taxonomy</legend>
+            <label class="mxcw-curation-field-label" for="mxcw-curation-synonymy">Enter a correction for the synonymy of this taxon</label>
+            <textarea id="mxcw-curation-synonymy" name="synonymy" rows="4">${encode(ownTaxonomy?.comment || "")}</textarea></fieldset>
+    </div>`;
+};
+
+/**
+ * Render the controls of the form for an observation - the comment on it. Its corrected position is set by dragging
+ * its marker on the map, and shown by the form's template.
+ * @param {CurationNote|null} own - The user's own note on the observation, if any
+ * @return {String} The markup of the controls
+ */
+bioreportr.curationForm.observationControlsMarkup = function (own) {
+    return `<div class="mxcw-curation-panel" data-type="observation">
+        <fieldset class="mxcw-curation-comment"><legend>Comment</legend><textarea name="observationComment" rows="4"
+            aria-label="Comment on this record">${hortis.dataTable.encode(own?.comment || "")}</textarea></fieldset>
+    </div>`;
+};
+
+/**
+ * Render the consensus of the community on the subject of the form - for provenance, the tally of the votes, and for
+ * every type, each note.
+ * @param {String} type - The type of the notes, one of the `bioreportr.curation.types`, or "none" if there is no subject
+ * @param {CurationNote[]} notes - The notes of that type on the subject, most recent first
+ * @return {String} The markup of the consensus
+ */
+bioreportr.curationForm.consensusMarkup = function (type, notes) {
+    const encode = hortis.dataTable.encode;
+    const none = {
+        provenance: "No one has added a note on the provenance of this taxon yet.",
+        taxonomy: "No one has added a note on the taxonomy of this taxon yet.",
+        observation: "No one has added a note on this record yet."
+    };
+    const details = {
+        provenance: note => bioreportr.curation.questions.map(([question, label]) => `${label}: ${encode(note[question])}`).join(" · "),
+        taxonomy: () => "",
+        observation: note => note.lat !== "" && note.lat !== undefined && Number.isFinite(+note.lat) ?
+            "Corrected position: " + bioreportr.curationForm.positionText({lat: +note.lat, long: +note.long}) : "Position not corrected"
+    };
+    const items = notes.map(note => {
+        const detail = details[type](note);
+        return `<li class="mxcw-curation-note">
+        <div class="mxcw-curation-note-head"><b>${encode(note.author)}</b> ${encode(bioreportr.eventDay(note.submitted))}${note.pending ? " <i>(being processed)</i>" : ""}
+            ${note.url ? `<a href="${encode(note.url)}" target="_blank" rel="noopener">on GitHub</a>` : ""}</div>
+        ${detail ? `<div class="mxcw-curation-note-answers">${detail}</div>` : ""}
+        ${note.comment ? `<div class="mxcw-curation-note-comment">${encode(note.comment)}</div>` : ""}
+    </li>`;
+    }).join("");
+    return type === "none" ? "" : notes.length === 0 ? `<p class="mxcw-curation-none">${none[type]}</p>` :
+        `${type === "provenance" ? bioreportr.curation.tallyMarkup(notes) : ""}<ul class="mxcw-curation-notes">${items}</ul>`;
+};
+
+/**
+ * Submit the form's note, of the type shown, read from its controls - and for an observation, its corrected position.
+ * @param {bioreportr.curation} curation - The story page's curation component
+ * @param {bioreportr.curationForm} form - The form
+ * @param {Event} event - The click on the form's submit button
+ * @param {Window} window - The window
+ */
+bioreportr.curationForm.submit = function (curation, form, event, window) {
+    const model = form.model;
+    const data = new window.FormData(event.target.closest("form"));
+    const answers = {
+        provenance: () => Object.fromEntries([...bioreportr.curation.questions.map(([question]) => [question, data.get(question)]), ["comment", data.get("comment")]]),
+        taxonomy: () => ({comment: data.get("synonymy")}),
+        observation: () => ({comment: data.get("observationComment"),
+            lat: model.position ? String(model.position.lat) : "", long: model.position ? String(model.position.long) : ""})
+    };
+    curation.submit(model.type, model.subject, answers[model.type]());
+};
+
+/** The draggable marker correcting an observation's position **/
+
+bioreportr.curationForm.dragMarkerMarkup = `<svg width="30" height="40" viewBox="0 0 30 40" aria-hidden="true">
+    <path d="M15 1C7.3 1 1 7.2 1 14.9 1 25.3 15 39 15 39s14-13.7 14-24.1C29 7.2 22.7 1 15 1Z"/>
+    <circle cx="15" cy="15" r="5.5"/>
+</svg>`;
+
+/**
+ * Create the marker by which the position of an observation is corrected - a duplicate of its marker, which is dragged
+ * to where the record was made, writing the position into the form's `correction`. It is added to the map only whilst
+ * an observation is chosen - see `bioreportr.curationForm.showDragMarker`.
+ * @param {bioreportr.curationForm} that - The form
+ * @param {maplibregl.Map} map - The story's map, once ready
+ * @param {Object} maplibregl - The MapLibre library
+ * @return {Object} A record of the marker, with members `marker`, `map` and `shown`
+ */
+bioreportr.curationForm.makeDragMarker = function (that, map, maplibregl) {
+    const element = map.getContainer().ownerDocument.createElement("div");
+    element.className = "mxcw-curation-drag-marker";
+    element.title = "Drag me to where this record was made";
+    element.innerHTML = bioreportr.curationForm.dragMarkerMarkup;
+    const marker = new maplibregl.Marker({element, anchor: "bottom", draggable: true});
+    // 6 decimal places is about 10cm, finer than any record is made
+    const round = coordinate => Math.round(coordinate * 1e6) / 1e6;
+    marker.on("dragend", () => {
+        const {lng, lat} = marker.getLngLat();
+        that.correction = {recordId: that.model.recordId, lat: round(lat), long: round(lng)};
+    });
+    return {marker, map, shown: false};
+};
+
+/**
+ * Place the draggable marker at a position, or remove it from the map if there is none.
+ * @param {Object} record - The record of the marker, as created by `bioreportr.curationForm.makeDragMarker`
+ * @param {Object|null} position - Where it is to stand, with members `lat` and `long`, or null if no observation is chosen
+ */
+bioreportr.curationForm.showDragMarker = function (record, position) {
+    if (position) {
+        record.marker.setLngLat([position.long, position.lat]);
+        if (!record.shown) {
+            record.marker.addTo(record.map);
+            record.shown = true;
+        }
+    } else if (record.shown) {
+        record.marker.remove();
+        record.shown = false;
+    }
+};
+
+bioreportr.curationForm.destroyDragMarker = function (record) {
+    record.marker.remove();
+};
+
+/**
+ * Return the observation's marker to its recorded position, so that the note corrects no position.
+ * @param {bioreportr.curationForm} that - The form
+ */
+bioreportr.curationForm.resetPosition = function (that) {
+    that.correction = {recordId: that.model.recordId, cleared: true};
+};
+
+}).call(globalThis);
+//# sourceURL=../bioreportr/js/curation.js</script>
+    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyPage-10">(function () {
 "use strict";
 
 // The story page of a bioReportR project - its panes, knitted from R Markdown, each shown beside a map of the
@@ -2662,7 +3898,7 @@ fluid.def("bioreportr.storyPage", {
     activePane: "$compute:bioreportr.storyPage.activePane({self}.panes, {self}.activePaneKey)",
     // A record selected in one pane is cleared on moving to another
     clearRecordOnPaneChange: "$effect:bioreportr.storyPage.clearRecordOnPaneChange({self}, {self}.activePaneKey)",
-    classes: "$compute:bioreportr.storyPage.classes({self}.activePane)",
+    classes: "$compute:bioreportr.storyPage.classes({self}.activePane, {self}.checklist.search.filterState, {self}.map.recordSelector.filterState)",
     selectPane: "$method:bioreportr.storyPage.selectPane({self}, {0}:paneKey)",
     // The reporting status chosen in the status filter, or in the legend of a map coloured by status
     selectedStatus: null,
@@ -2753,9 +3989,41 @@ fluid.def("bioreportr.storyPage", {
             $layers: "hortis.standardChecklist",
             label: "Plants",
             rootId: "47126", // Plantae
-            decorate: "hortis.blitzChecklistDecoration"
+            decorate: "hortis.blitzChecklistDecoration",
+            // Each taxon bears a speech bubble leading to its curation, which summarises its notes on hover - see curation.js
+            renderTooltip: "$method:bioreportr.curation.renderChecklistTooltip({self}.rowById, {storyPage}.curation.byTaxon, {0}:hoverId)",
+            // The hover id of a summary pinned by clicking its bubble, until a press outside it dismisses it
+            curationPin: null,
+            pinTooltip: "$effect:bioreportr.curation.pinTooltip({self}, {storyPage}, {self}.tooltip, {self}.curationPin)",
+            pinDismiss: {
+                $effect: {
+                    func: "bioreportr.curation.pinDismiss",
+                    args: ["{self}", fluid.globalDismissalSignal, "{self}.tooltip"]
+                }
+            },
+            tree: {
+                $component: {
+                    view: {
+                        $component: {
+                            templateTree: `$compute:bioreportr.curation.renderChecklistTree({checklist}, {checklist}.rootEntry,
+                                {checklist}.idToState, {checklist}.selectedId, {storyPage}.curation.byTaxon)`
+                        }
+                    }
+                }
+            }
         }
     },
+    // Community curation of the taxa - see notes/community-curation-design.md and the pane rendered by bioreportr.curationPane
+    curation: {
+        $component: {
+            $layers: "bioreportr.curation"
+        }
+    },
+    // The taxon chosen for curation, whilst the curation pane is shown - that chosen in the checklist's search
+    curationTaxon: "$compute:bioreportr.curation.chosenTaxon({self}.activePane, {self}.checklist.search.filterState, {self}.taxa.rowById)",
+    // The observation chosen for curation, whilst the curation pane is shown - the record selected, held in the URL
+    curationObservation: `$compute:bioreportr.curation.chosenObservation({self}.activePane, {self}.map.recordSelector.filterState,
+        {self}.map.recordSelector.selectedRow)`,
     recordReporter: {
         $component: {
             $layers: "bioreportr.recordAndTaxaReporter",
@@ -2781,7 +4049,16 @@ fluid.def("bioreportr.storyPage", {
             // Clicking a record shows its marker alone on the map - see hortis.libreMap.recordSelector
             rowSelectable: true,
             selectedRow: "{storyPage}.map.recordSelector.selectedRow",
-            selectRow: "$method:hortis.libreMap.recordSelector.select({storyPage}.map.recordSelector, {0}:row)"
+            selectRow: "$method:hortis.libreMap.recordSelector.select({storyPage}.map.recordSelector, {0}:row)",
+            // Each record bears a speech bubble leading to its curation - see bioreportr.curation.recordTableBody
+            resolvedColumns: "$compute:bioreportr.curation.recordTableColumns({self}.rows, {self}.columns)",
+            body: {
+                $component: {
+                    markup: `$compute:bioreportr.curation.recordTableBody({dataTable}.displayRows, {dataTable}.resolvedColumns,
+                        {dataTable}.window, {dataTable}.rowHeight, {dataTable}.rowSelectable, {dataTable}.selectedRow,
+                        {storyPage}.curation.byObservation, {storyPage}.map.recordSelector.recordIndex)`
+                }
+            }
         }
     },
     // The buttons beside the tables of records clearing the record selected in them, disabled whilst there is none
@@ -2792,14 +4069,6 @@ fluid.def("bioreportr.storyPage", {
         $component: {
             $layers: "hortis.titleTooltips"
         }
-    },
-    // The earliest record of each taxon, and the headings of the sections of the summary of a map cell, by reporting
-    // status - see bioreportr.cellTooltip
-    earliestRecords: "$compute:bioreportr.cellTooltip.earliestRecords({self}.obsRows)",
-    cellTooltipHeadings: {
-        unconfirmed: "Historical species recorded here: records, and year last seen",
-        new: "Newly reported species here: earliest record in this atlas",
-        confirmed: "Most recorded confirmed species"
     },
     // The panel of records beneath the map opens and closes as an accordion, its header naming the filters narrowing it
     recordsCollapsed: true,
@@ -2934,15 +4203,19 @@ fluid.def("bioreportr.storyPage", {
 });
 
 /**
- * Compute the classes of the parts of the story page which are shown or hidden according to the active pane.
+ * Compute the classes of the parts of the story page which are shown or hidden according to the active pane. A pane
+ * whose settings have foldVizControlsOnTaxon, e.g. the curation pane, folds away the checklist once a taxon, or a
+ * record, is chosen.
  * @param {PaneSettings} pane - The active pane
+ * @param {TaxonRow|null} chosenTaxon - The taxon chosen in the checklist's search, if any
+ * @param {String|null} recordId - The id of the record selected, if any
  * @return {Object<String, String>} The classes of each part
  */
-bioreportr.storyPage.classes = function (pane) {
+bioreportr.storyPage.classes = function (pane, chosenTaxon, recordId) {
     const hidden = visible => visible ? "" : "fl-hidden";
     return {
         map: pane.visibleMap ? "" : "mxcw-hideMap",
-        vizControls: hidden(pane.visibleVizControls),
+        vizControls: hidden(pane.visibleVizControls && !(pane.foldVizControlsOnTaxon && (chosenTaxon || hortis.isValue(recordId)))),
         obsFilters: hidden(pane.visibleObsFilters),
         filters: hidden(pane.visibleFilters),
         obsTable: hidden(pane.visibleObsTable),
@@ -3104,6 +4377,10 @@ fluid.def("hortis.dataTable", {
     scrollTop: 0,
     viewHeight: 0,
     rowHeight: 26.5,
+    // The least change in the measured height of a row for which `rowHeight` is updated. Rows differ in height by a
+    // fraction of a pixel, by their content and the display's scaling, and since every row not rendered is reckoned at
+    // `rowHeight`, following each such difference would change the height of a long table by thousands of pixels
+    rowHeightTolerance: 0.5,
     resolvedColumns: "$compute:hortis.dataTable.resolveColumns({self}.rows, {self}.columns)",
     displayRows: "$compute:hortis.dataTable.sortRows({self}.rows, {self}.sortColumn, {self}.sortDirection)",
     window: "$compute:hortis.dataTable.window({self}.displayRows.length, {self}.scrollTop, {self}.viewHeight, {self}.rowHeight, {self}.minBlockSize)",
@@ -3255,9 +4532,27 @@ hortis.dataTable.pageInfo = function (window) {
 };
 
 /**
+ * Measure the height of the rows rendered in a table's scrolled element, as their mean, since they may differ by a
+ * fraction of a pixel.
+ * @param {Element} scrollEl - The table's scrolled element
+ * @return {Number} The mean height of the rendered rows, or 0 if none is rendered
+ */
+hortis.dataTable.measureRowHeight = function (scrollEl) {
+    const rows = scrollEl.querySelectorAll("tbody tr:not(.hortis-dataTable-spacer)");
+    const first = rows[0], last = rows[rows.length - 1];
+    return rows.length > 0 ? (last.getBoundingClientRect().bottom - first.getBoundingClientRect().top) / rows.length : 0;
+};
+
+/**
  * Track the scrolled position and the height of the view of a table's scrolled element, writing them into the table
  * on each animation frame in which they change, and the height of its head into the element's CSS variable
  * --data-table-head-height.
+ * The table's `rowHeight`, by which the heights of the spacers standing for the rows not rendered are reckoned, is
+ * corrected only when the rows' measured height departs from it by more than `rowHeightTolerance`, and never whilst
+ * the pointer is pressed within the scrolled element. A change of `rowHeight` changes the height of the whole table,
+ * and whilst the scrollbar's thumb is dragged, the browser holds the thumb at the pointer by moving the scrolled
+ * position in proportion - which rendered other rows, measured afresh, in a loop which ran the table to its end. Once
+ * `rowHeight` is corrected, the scrolled position is moved so that the same row stays at the top of the view.
  * @param {hortis.dataTable} that - The table
  * @param {Element} container - The table's rendered container
  * @param {Window} window - The window holding the table
@@ -3266,32 +4561,50 @@ hortis.dataTable.pageInfo = function (window) {
 hortis.dataTable.track = function (that, container, window) {
     const scrollEl = container.querySelector(".hortis-dataTable-scroll");
     let frame = null;
+    // Whether the pointer is pressed within the scrolled element, e.g. dragging its scrollbar's thumb
+    let pressed = false;
     const update = () => {
         frame = null;
         const theadHeight = scrollEl.querySelector("thead")?.getBoundingClientRect().height || 0;
-        const row = scrollEl.querySelector("tbody tr:not(.hortis-dataTable-spacer)");
-        const rowHeight = row?.getBoundingClientRect().height;
         // Confines the vertical scrollbar's track to the rows, beneath the sticky head - see data-table.css
         scrollEl.style.setProperty("--data-table-head-height", theadHeight + "px");
+        const rowHeight = hortis.dataTable.measureRowHeight(scrollEl);
+        if (!pressed && rowHeight > 0 && Math.abs(rowHeight - that.rowHeight) > that.rowHeightTolerance) {
+            const topRow = scrollEl.scrollTop / that.rowHeight;
+            that.rowHeight = rowHeight;
+            scrollEl.scrollTop = topRow * rowHeight;
+        }
         that.scrollTop = scrollEl.scrollTop;
         that.viewHeight = Math.max(scrollEl.clientHeight - theadHeight, 0);
-        if (rowHeight > 0 && Math.abs(rowHeight - that.rowHeight) > 0.01) {
-            that.rowHeight = rowHeight;
-        }
     };
     const schedule = () => {
         if (!frame) {
             frame = window.requestAnimationFrame(update);
         }
     };
+    const press = () => {
+        pressed = true;
+    };
+    const release = () => {
+        if (pressed) {
+            pressed = false;
+            schedule();
+        }
+    };
     scrollEl.addEventListener("scroll", schedule);
+    scrollEl.addEventListener("pointerdown", press);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
     const observer = new window.ResizeObserver(schedule);
     observer.observe(scrollEl);
-    return {scrollEl, schedule, observer, window, cancel: () => frame && window.cancelAnimationFrame(frame)};
+    return {scrollEl, schedule, press, release, observer, window, cancel: () => frame && window.cancelAnimationFrame(frame)};
 };
 
 hortis.dataTable.untrack = function (record) {
     record.scrollEl.removeEventListener("scroll", record.schedule);
+    record.scrollEl.removeEventListener("pointerdown", record.press);
+    record.window.removeEventListener("pointerup", record.release);
+    record.window.removeEventListener("pointercancel", record.release);
     record.observer.disconnect();
     record.cancel();
 };
@@ -3550,6 +4863,16 @@ bioreportr.recordAndTaxaReporter.taxaCount = function (taxa, rowById) {
 // The taxa of the extirpation risk analysis - a table of the taxa of the project's summary which survive its filters,
 // from which a taxon is chosen. The filters are configured by the project as `filterRecords`, each the members of a
 // hortis.valueFilter
+/**
+ * The global name of the function computing the values of a filter of the species list, if its record names one. Every
+ * object inherits a `valueOf` method, so only one the record itself holds is taken - otherwise the filter would apply the
+ * inherited method as the name of a function, which fails and leaves every filter of the list without effect.
+ * @param {Object} record - The record of the filter, from the project's `taxaFilterRecords`
+ * @return {String|null} The global name of the function, or null if the filter reads its field directly
+ */
+fluid.registerNamespace("bioreportr.solowTaxa");
+bioreportr.solowTaxa.valueOf = record => Object.prototype.hasOwnProperty.call(record, "valueOf") ? record.valueOf : null;
+
 fluid.def("bioreportr.solowTaxa", {
     $layers: ["fluid.sfcLayer","fluid.component"],
     // filterRecords: Object[]
@@ -3575,7 +4898,13 @@ fluid.def("bioreportr.solowTaxa", {
             filterName: "{self}.record.filterName",
             fieldName: "{self}.record.fieldName",
             fieldValues: "{self}.record.fieldValues",
-            valueOf: "{self}.record.valueOf"
+            // The labels shown for the values, if the project gives them - otherwise the values themselves
+            fieldLabels: "{self}.record.fieldLabels",
+            // Named apart from valueOf, which every object and component inherits from Object.prototype, so that a reference
+            // to it finds that method in place of the filter's own setting and makes the filter fail - leaving every filter of
+            // the list without effect
+            valueFunction: "$compute:bioreportr.solowTaxa.valueOf({self}.record)",
+            doFilter: "$method:hortis.valueFilter.doFilter({0}:rows, {1}:filterState, {self}.fieldName, {self}.valueFunction)"
         }
     },
     epFilter: {
@@ -3589,6 +4918,12 @@ fluid.def("bioreportr.solowTaxa", {
             filters: "{solowTaxa hortis.taxaFilter}",
             checklists: [],
             label: ""
+        }
+    },
+    // The search of the list, the same as the atlas checklist's - a species picked from it is selected in the list
+    search: {
+        $component: {
+            $layers: "bioreportr.solowSearch"
         }
     },
     taxaTable: {
@@ -3607,8 +4942,94 @@ fluid.def("bioreportr.solowTaxa", {
 "template":{"sfcLayer":"bioreportr.solowTaxa"}}}
 });
 
+
 }).call(globalThis);
 //# sourceURL=../bioreportr/sfc/bioreportr-solowTaxa.vue</script>
+    <style data-fluid-indent="4" data-fluid-hydrated="" id="fl-style-bioreportr.solowTaxa-0">
+/* The filters of the species list: a row for each, its label beside its choices, which are set as chips, so that they
+   read in order and leave room for the list beneath them */
+.mxcw-solow-taxa .imerss-taxa-filters {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 2px 8px 6px;
+}
+
+/* Collapsed with its panel, as before */
+.mxcw-solow-taxa .imerss-filters-collapsed .imerss-taxa-filters {
+    display: none;
+}
+
+.mxcw-solow-taxa .imerss-taxa-filters > div:not(.imerss-filter) {
+    display: contents;
+}
+
+.mxcw-solow-taxa .imerss-taxa-filters .imerss-filter {
+    display: grid;
+    grid-template-columns: 8.5em minmax(0, 1fr);
+    align-items: center;
+    column-gap: 10px;
+    margin: 0;
+    padding: 5px 0;
+    border-top: 1px solid #e5e7eb;
+}
+
+.mxcw-solow-taxa .imerss-taxa-filters .imerss-ep-filter {
+    border-top: 0;
+}
+
+.mxcw-solow-taxa .imerss-taxa-filters .imerss-filter-title {
+    margin: 0;
+    color: #4b778f;
+    font-size: var(--story-data);
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.mxcw-solow-taxa .imerss-value-filter-rows {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.mxcw-solow-taxa .imerss-value-filter-rows .imerss-filter-row {
+    display: flex;
+    flex: none;
+    width: auto;
+    align-items: center;
+    margin: 0;
+    padding: 1px 10px 1px 6px;
+    font-size: var(--story-data);
+    border: 1px solid #d5dde2;
+    border-radius: 100px;
+}
+
+.mxcw-solow-taxa .imerss-taxa-filters .mxcw-ep-range {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.mxcw-solow-taxa .imerss-taxa-filters .mxcw-ep-range label span {
+    width: auto;
+    color: #4b778f;
+}
+
+.mxcw-solow-taxa .imerss-taxa-filters .mxcw-ep-range label {
+    display: grid;
+    grid-template-columns: 2.6em minmax(0, 1fr) 3em;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--story-data);
+}
+
+.mxcw-solow-taxa .imerss-taxa-filters .mxcw-ep-range output {
+    text-align: right;
+}
+
+/*# sourceURL=file:///home/amb26/Source/gits/howe-sound-mapping-2026/docs/bioreportr/sfc/bioreportr-solowTaxa.vue*/</style>
     <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-hortis.recordReporter-1">(function () {
 "use strict";
 
@@ -3748,12 +5169,28 @@ fluid.def("bioreportr.epFilter", {
     // The range, between 0 and 1
     filterState: {min: 0, max: 1},
     display: "$compute:bioreportr.epFilter.display({self}.filterState)",
+    // The handles are placed from code: the renderer writes the value of a bound input back into what it is bound to,
+    // which left the readings stuck and the other handle out of place
+    placeHandles: "$effect:bioreportr.epFilter.placeHandles({self}.display, {global}.document)",
     filterSummary: "$compute:bioreportr.epFilter.summarise({self}.filterState)",
     doFilter: "$method:bioreportr.epFilter.doFilter({0}:rows, {1}:filterState)",
     reset: "$method:bioreportr.epFilter.reset({self})",
     view: {"$component":{    $layers: ["fluid.sfcTemplateViewComponent"],
 "template":{"sfcLayer":"bioreportr.epFilter"}}}
 });
+
+/**
+ * Place the handles of the sliders at the range of the filter's state.
+ * @param {Object} display - The range as percentages, with members `min` and `max`
+ * @param {Document} dokkument - The document holding the filter
+ */
+bioreportr.epFilter.placeHandles = function (display, dokkument) {
+    const min = dokkument.querySelector(".mxcw-ep-min"), max = dokkument.querySelector(".mxcw-ep-max");
+    if (min && max) {
+        min.value = display.min;
+        max.value = display.max;
+    }
+};
 
 }).call(globalThis);
 //# sourceURL=../bioreportr/sfc/bioreportr-epFilter.vue</script>
@@ -3916,6 +5353,287 @@ bioreportr.iNatPanel.containerId = (paneKey, index) => "inat-components-" + pane
 }).call(globalThis);
 //# sourceURL=../bioreportr/sfc/bioreportr-dataPane.vue</script>
     <link data-fluid-indent="4" data-fluid-hydrated="" id="fl-style-bioreportr.dataPane-0" href="../bioreportr/css/imerss-inat-panels.css" rel="stylesheet">
+    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.curationPane-3">(function () {
+"use strict";
+
+// Community curation of the taxa and records of a story - see notes/community-curation-design.md
+
+// The curation state of a story page, held as its member `curation`: the notes on taxa and on observations
+// consolidated from GitHub, those pending in local storage, the user signed in, and the submission of notes
+fluid.def("bioreportr.curation", {
+    $layers: "fluid.component",
+    // The files written by the consolidation job, src/js/consolidateCuration.js, relative to the story page
+    configFile: "../curation/config.json",
+    taxaFile: "../curation/taxa.csv",
+    observationsFile: "../curation/observations.csv",
+    claimStatusFile: "../curation/claimStatus.json",
+    config: "$compute:fluid.fetchJSON({self}.configFile)",
+    claimStatus: "$compute:fluid.fetchJSON({self}.claimStatusFile)",
+    taxonRecords: {
+        $component: {
+            $layers: "hortis.csvReader",
+            url: "{curation}.taxaFile"
+        }
+    },
+    observationRecords: {
+        $component: {
+            $layers: "hortis.csvReader",
+            url: "{curation}.observationsFile"
+        }
+    },
+    consolidated: "$compute:bioreportr.curation.consolidatedClaims({self}.claimStatus, {self}.taxonRecords.rows, {self}.observationRecords.rows)",
+    paneKey: "$compute:bioreportr.curation.paneKey({storyPage}.panes)",
+    storageKey: "$compute:bioreportr.curation.storageKey({self}.config)",
+    tokenKey: "bioreportr-curation-token",
+    // Advanced whenever the pending notes, or the token, are written to local storage, so that they are read again
+    pendingVersion: 0,
+    tokenVersion: 0,
+    pending: "$compute:bioreportr.curation.readPending({global}, {self}.storageKey, {self}.pendingVersion)",
+    byTaxon: "$compute:bioreportr.curation.byTaxon({self}.taxonRecords.rows, {self}.pending, {self}.consolidated)",
+    byObservation: "$compute:bioreportr.curation.byObservation({self}.observationRecords.rows, {self}.pending, {self}.consolidated)",
+    prune: "$effect:bioreportr.curation.prune({self}, {self}.pending, {self}.consolidated, {global})",
+    // Drops any pending note whose comment has been deleted from GitHub before it could be consolidated
+    verifyPending: "$effect:bioreportr.curation.verifyPending({self}, {self}.backend, {self}.token, {global})",
+    connected: "$compute:bioreportr.curation.isConnected({self}.config)",
+    backend: "$compute:bioreportr.curation.makeBackend({self}.config, {global})",
+    token: "$compute:bioreportr.curation.readToken({self}.tokenKey, {self}.tokenVersion, {global})",
+    takeSession: "$effect:bioreportr.curation.takeSession({self}, {self}.backend, {global})",
+    // The user signed in, with their `login`, or null if none is
+    viewer: null,
+    loadViewer: "$effect:bioreportr.curation.loadViewer({self}, {self}.backend, {self}.token)",
+    // A message on the progress of a submission
+    status: "",
+    submit: "$method:bioreportr.curation.submit({self}, {0}:type, {1}:subject, {2}:answers, {global})",
+    signOut: "$method:bioreportr.curation.signOut({self}, {global})"
+});
+
+// The section of the curation pane, rendering the pane's R Markdown, which places the form in <div @id="curationForm">
+fluid.def("bioreportr.curationPane", {
+    $layers: ["fluid.sfcLayer","fluid.component"],
+    curationForm: {
+        $component: {
+            $layers: "bioreportr.curationForm"
+        }
+    },
+    view: {"$component":{    $layers: ["fluid.sfcTemplateViewComponent"],
+"template":{"sfcLayer":"bioreportr.curationPane"}}}
+});
+
+}).call(globalThis);
+//# sourceURL=../bioreportr/sfc/bioreportr-curationPane.vue</script>
+    <style data-fluid-indent="4" data-fluid-hydrated="" id="fl-style-bioreportr.curationPane-0">
+/* The speech bubble of each record in the table of records, shown on hovering over its row, and always once it has
+   notes - after those of the checklist, in imerss-story.css */
+.mxcw-obs-table td:has(> .mxcw-curation-record-bubble) {
+    padding: 0 0 0 4px;
+}
+
+.mxcw-obs-table .mxcw-curation-record-bubble {
+    display: block;
+    width: 18px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    background-color: #4b778f;
+    cursor: pointer;
+    opacity: 0;
+    -webkit-mask: var(--mxcw-curation-bubble-outline) center / contain no-repeat;
+    mask: var(--mxcw-curation-bubble-outline) center / contain no-repeat;
+}
+
+.mxcw-obs-table tr:hover .mxcw-curation-record-bubble,
+.mxcw-obs-table .mxcw-curation-record-bubble:focus-visible {
+    opacity: 0.8;
+}
+
+.mxcw-obs-table .mxcw-curation-record-bubble.mxcw-curation-noted {
+    opacity: 1;
+    -webkit-mask-image: var(--mxcw-curation-bubble-filled);
+    mask-image: var(--mxcw-curation-bubble-filled);
+}
+
+.mxcw-obs-table .mxcw-curation-record-bubble:hover {
+    opacity: 1;
+    background-color: #184e62;
+}
+
+/* The marker dragged to correct the position of an observation, a duplicate of its own marker - see
+   bioreportr.curationForm.makeDragMarker */
+.mxcw-curation-drag-marker {
+    /* Above the record's own marker, which it duplicates, so that it can be grabbed */
+    z-index: 2;
+    cursor: grab;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.mxcw-curation-drag-marker:active {
+    cursor: grabbing;
+}
+
+.mxcw-curation-drag-marker svg {
+    display: block;
+}
+
+.mxcw-curation-drag-marker path {
+    fill: #e8711a;
+    stroke: #fff;
+    stroke-width: 2;
+}
+
+.mxcw-curation-drag-marker circle {
+    fill: #fff;
+}
+
+/*# sourceURL=file:///home/amb26/Source/gits/howe-sound-mapping-2026/docs/bioreportr/sfc/bioreportr-curationPane.vue*/</style>
+    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.curationForm-3">(function () {
+"use strict";
+
+// The form of the curation pane, on which a member of the community records what they know of the taxon or the
+// observation chosen - see notes/community-curation-design.md. For a taxon, its tabs choose between notes on its
+// provenance and on its taxonomy. For an observation, the user's main task is to correct its position, by dragging a
+// duplicate of its marker on the map. It is placed by the pane's R Markdown, in an element <div @id="curationForm">
+fluid.def("bioreportr.curationForm", {
+    $layers: ["fluid.sfcLayer","fluid.component"],
+    taxon: "{storyPage}.curationTaxon",
+    observation: "{storyPage}.curationObservation",
+    // The type of note on a taxon chosen by the form's tabs
+    tab: "provenance",
+    // The position to which the user has dragged the observation's marker, with its recordId - see
+    // bioreportr.curationForm.position
+    correction: null,
+    model: `$compute:bioreportr.curationForm.model({self}.taxon, {self}.observation, {storyPage}.taxa.rowById, {storyPage}.curation.byTaxon,
+        {storyPage}.curation.byObservation, {storyPage}.curation.viewer, {storyPage}.curation.connected, {storyPage}.curation.status,
+        {self}.tab, {self}.correction)`,
+    image: {
+        $component: {
+            $layers: "hortis.verbatimSlot",
+            markup: "{curationForm}.model.image"
+        }
+    },
+    recordLink: {
+        $component: {
+            $layers: "hortis.verbatimSlot",
+            markup: "{curationForm}.model.recordLink"
+        }
+    },
+    consensus: {
+        $component: {
+            $layers: "hortis.verbatimSlot",
+            markup: "{curationForm}.model.consensus"
+        }
+    },
+    controls: {
+        $component: {
+            $layers: "hortis.verbatimSlot",
+            markup: "{curationForm}.model.controls"
+        }
+    },
+    dragMarker: {
+        $bindable: {
+            bind: "bioreportr.curationForm.makeDragMarker({self}, {storyPage}.map.readyMap, {global}.maplibregl)",
+            unbind: "bioreportr.curationForm.destroyDragMarker({boundValue})",
+            onceOnly: true
+        }
+    },
+    showDragMarker: "$effect:bioreportr.curationForm.showDragMarker({self}.dragMarker, {self}.model.markerPosition)",
+    resetPosition: "$method:bioreportr.curationForm.resetPosition({self})",
+    selectProvenance: "$method:bioreportr.curationForm.selectTab({self}, provenance)",
+    selectTaxonomy: "$method:bioreportr.curationForm.selectTab({self}, taxonomy)",
+    submit: "$method:bioreportr.curationForm.submit({storyPage}.curation, {self}, {0}:event, {global})",
+    signIn: "$method:bioreportr.curation.signIn({storyPage}.curation.backend, {global})",
+    signOut: "$method:bioreportr.curation.signOut({storyPage}.curation, {global})",
+    // Brings back the checklist, from which another taxon may be chosen
+    chooseAnother: "$method:bioreportr.curationForm.chooseAnother({storyPage})",
+    // Returns from an observation to the curation of its taxon
+    backToTaxon: "$method:hortis.libreMap.recordSelector.reset({storyPage}.map.recordSelector)",
+    view: {"$component":{    $layers: ["fluid.sfcTemplateViewComponent"],
+"template":{"sfcLayer":"bioreportr.curationForm"}}}
+});
+
+bioreportr.curationForm.chooseAnother = function (storyPage) {
+    storyPage.map.recordSelector.reset();
+    storyPage.checklist.search.reset();
+};
+
+bioreportr.curationForm.selectTab = function (that, tab) {
+    that.tab = tab;
+};
+
+}).call(globalThis);
+//# sourceURL=../bioreportr/sfc/bioreportr-curationForm.vue</script>
+    <style data-fluid-indent="4" data-fluid-hydrated="" id="fl-style-bioreportr.curationForm-0">
+/* The tabs choosing the type of note on a taxon - each type's controls are rendered, and only the chosen type's shown */
+.mxcw-curation-tabs {
+    display: flex;
+    gap: 2px;
+    margin: 12px 0 0;
+    border-bottom: 1px solid #c9d6dc;
+}
+
+.mxcw-curation-tab {
+    padding: 6px 14px;
+    border: 1px solid #c9d6dc;
+    border-bottom: 0;
+    border-radius: 4px 4px 0 0;
+    background: #eef3f5;
+    color: #184e62;
+    font: inherit;
+    cursor: pointer;
+}
+
+.mxcw-curation-tab[aria-selected="true"] {
+    position: relative;
+    top: 1px;
+    background: #fff;
+    font-weight: 600;
+}
+
+.mxcw-curation-note-form .mxcw-curation-panel {
+    display: none;
+}
+
+.mxcw-curation-type-provenance .mxcw-curation-panel[data-type="provenance"],
+.mxcw-curation-type-taxonomy .mxcw-curation-panel[data-type="taxonomy"],
+.mxcw-curation-type-observation .mxcw-curation-panel[data-type="observation"] {
+    display: block;
+}
+
+.mxcw-curation-field-label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+/* The rubric of the curation of an observation, and its corrected position */
+.mxcw-curation-rubric {
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    border-left: 4px solid #e8711a;
+    background: rgba(232, 113, 26, 0.14);
+}
+
+.mxcw-curation-rubric p {
+    margin: 0;
+}
+
+.mxcw-curation-record-id {
+    overflow-wrap: anywhere;
+}
+
+.mxcw-curation-record-id .imerss-obs-tooltip-link {
+    display: inline;
+}
+
+.mxcw-curation-position {
+    margin: 12px 0 0;
+}
+
+.mxcw-curation-position .mxcw-curation-field-label {
+    display: inline;
+    margin-right: 0.4em;
+}
+
+/*# sourceURL=file:///home/amb26/Source/gits/howe-sound-mapping-2026/docs/bioreportr/sfc/bioreportr-curationForm.vue*/</style>
     <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyMap-0" fluid-client="" fluid-src="../vendor/maplibre-gl/dist/maplibre-gl-dev.js" src="../vendor/maplibre-gl/dist/maplibre-gl-dev.js"></script>
     <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyMap-1" fluid-client="" fluid-src="../vendor/@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw-unminified.js" src="../vendor/@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw-unminified.js"></script>
     <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.storyMap-2" fluid-client="" fluid-src="../vendor/@popperjs/core/dist/umd/popper-lite.min.js" src="../vendor/@popperjs/core/dist/umd/popper-lite.min.js"></script>
@@ -6037,8 +7755,7 @@ fluid.def("bioreportr.storyMap", {
     // A summary of a map cell, by the reporting status of its species - see bioreportr.cellTooltip
     gridSelector: {
         $component: {
-            renderTooltip: `$method:bioreportr.cellTooltip.render({libreMap}.obsQuantiser.grid, {vizLoader}.taxa.rowById,
-                {vizLoader}.finalFilteredObs, {storyPage}.earliestRecords, {storyPage}.cellTooltipHeadings, {0}:cellId)`
+            renderTooltip: "$method:bioreportr.cellTooltip.render({libreMap}.obsQuantiser.grid, {vizLoader}.taxa.rowById, {0}:cellId)"
         }
     },
     showPane: "$effect:bioreportr.storyMap.showPane({self}, {self}.readyMap, {storyPage}.mapData, {storyPage}.activePaneKey)",
@@ -6780,6 +8497,69 @@ hortis.standardChecklist.selectName = function (that, id) {
 
 }).call(globalThis);
 //# sourceURL=../vendor/imerss-bioinfo/src/client/sfc/core/hortis-standardChecklist.vue</script>
+    <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-bioreportr.solowSearch-3">(function () {
+"use strict";
+
+// The search of the species list, in the same box and with the same suggestions as the search of the atlas checklist -
+// see hortis.taxonSearchFilter. Rather than filtering, the species picked is selected in the list, which is scrolled to it
+fluid.def("bioreportr.solowSearch", {
+    $layers: ["fluid.sfcLayer","hortis.autocompleteHost"],
+    controlId: "mxcw-solow-search",
+    placeholder: "Search taxa ...",
+    minLength: 2,
+    renderSuggestion: "hortis.autocompleteSuggestionForTaxonRow",
+    renderInputValue: "hortis.autocompleteInputForTaxonRow",
+    // The species picked shows the button clearing the search, as the checklist's does
+    filterState: "{solowTaxa}.selectedTaxon",
+    queryAutocomplete: "$method:hortis.checklist.querySearch({solowTaxa}.taxaFilters.allOutput, {0}:query, {1}:callback, {self}.maxSuggestions)",
+    confirmAutocomplete: "$method:bioreportr.solowSearch.confirm({solowTaxa}.taxaTable, {0}:selection, {global}.document, {global})",
+    reset: "$method:bioreportr.solowSearch.reset({solowTaxa}.taxaTable, {self}.controlId, {global}.document)",
+    view: {"$component":{    $layers: ["fluid.sfcTemplateViewComponent"],
+"template":{"sfcLayer":"bioreportr.solowSearch"}}}
+});
+
+/**
+ * Select the species picked from the search in the list, and scroll the list to it.
+ * @param {hortis.dataTable} table - The list of species
+ * @param {TaxonRow|undefined} selection - The species picked - undefined if the search was left without a choice
+ * @param {Document} dokkument - The document holding the list
+ * @param {Window} window - The window holding it
+ */
+bioreportr.solowSearch.confirm = function (table, selection, dokkument, window) {
+    if (selection) {
+        table.selectedRow = selection;
+        window.requestAnimationFrame(() => {
+            const index = table.displayRows.indexOf(selection);
+            const scrollEl = dokkument.querySelector(".mxcw-solow-taxa .hortis-dataTable-scroll");
+            if (index >= 0 && scrollEl) {
+                scrollEl.scrollTop = index * table.rowHeight;
+            }
+        });
+    }
+};
+
+/**
+ * Clear the search, and the species selected in the list.
+ * @param {hortis.dataTable} table - The list of species
+ * @param {String} controlId - The id of the search box
+ * @param {Document} dokkument - The document holding it
+ */
+bioreportr.solowSearch.reset = function (table, controlId, dokkument) {
+    table.selectedRow = null;
+    hortis.autocomplete.clear(dokkument, controlId);
+};
+
+}).call(globalThis);
+//# sourceURL=../bioreportr/sfc/bioreportr-solowSearch.vue</script>
+    <style data-fluid-indent="4" data-fluid-hydrated="" id="fl-style-bioreportr.solowSearch-0">
+/* The search above the species list, set as the atlas checklist's search is in its header */
+.mxcw-solow-search {
+    display: flex;
+    align-items: center;
+    flex: none;
+}
+
+/*# sourceURL=file:///home/amb26/Source/gits/howe-sound-mapping-2026/docs/bioreportr/sfc/bioreportr-solowSearch.vue*/</style>
     <script data-fluid-indent="4" data-fluid-hydrated="" id="fl-script-hortis.taxonSearchFilter-3">(function () {
 "use strict";
 
@@ -6930,10 +8710,10 @@ fluid.def("hortis.valueFilter.row", {
         }
       }
     </style>
-    <div data-fluid-hydrated="{&quot;attrs&quot;:{&quot;fluid-layers&quot;:&quot;howe.story&quot;},&quot;html&quot;:&quot;&quot;}" class="imerss-main imerss-loading" fluid-layers="howe.story"><div class="mxcw-leftPane" data-mxcw-startup-hidden="map"><div></div><div aria-orientation="horizontal" class="resize-bar resize-bar--vertical" aria-label="Resize panels" tabindex="0" role="separator"></div><div class="mxcw-data fld-imerss-nodismiss-map"><div class="mxcw-data-pane-widget mxcw-atlas-taxon-holder"><div></div></div><div aria-orientation="horizontal" class="resize-bar resize-bar--vertical" aria-label="Resize panels" tabindex="0" role="separator"></div><div class="mxcw-records-collapsed"><div class="mxcw-obs-table-controls"><button aria-expanded="false" aria-controls="mxcw-records-table" type="button" class="mxcw-records-toggle mxcw-data-widget-text">Records<span class="mxcw-records-filter-label"></span></button><button disabled aria-label="Clear the selected record" title="Clear the selected record" type="button" class="imerss-download-button mxcw-record-reset"><svg aria-hidden="true" height="24" width="24"><use href="#imerss-i-reset" /></svg></button><span title="Download records as CSV" class="imerss-download-button imerss-basic-tooltip"><svg height="24" width="24"><use href="#imerss-i-download" /></svg></span></div><div id="mxcw-records-table" class="mxcw-obs-table hortis-datatable hortis-dataTable-wrap"><div class="hortis-dataTable-scroll"><table><thead><tr><th class="hortis-dataTable-select-cell"></th><th><div class="hortis-dataTable-sort-wrap">scientificName</div></th><th><div class="hortis-dataTable-sort-wrap">occurrenceID</div></th><th><div class="hortis-dataTable-sort-wrap">taxonID</div></th><th><div class="hortis-dataTable-sort-wrap">suborder</div></th><th><div class="hortis-dataTable-sort-wrap">genus</div></th><th><div class="hortis-dataTable-sort-wrap">specificEpithet</div></th><th><div class="hortis-dataTable-sort-wrap">infraspecificEpithet</div></th><th><div class="hortis-dataTable-sort-wrap">institutionCode</div></th><th><div class="hortis-dataTable-sort-wrap">catalogNumber</div></th><th><div class="hortis-dataTable-sort-wrap">recordedBy</div></th><th><div class="hortis-dataTable-sort-wrap">recordNumber</div></th><th><div class="hortis-dataTable-sort-wrap">eventDate</div></th><th><div class="hortis-dataTable-sort-wrap">locality</div></th><th><div class="hortis-dataTable-sort-wrap">decimalLatitude</div></th><th><div class="hortis-dataTable-sort-wrap">decimalLongitude</div></th><th><div class="hortis-dataTable-sort-wrap">coordinateUncertaintyInMeters</div></th><th><div class="hortis-dataTable-sort-wrap">georeferencedBy</div></th><th><div class="hortis-dataTable-sort-wrap">georeferenceVerificationStatus</div></th><th><div class="hortis-dataTable-sort-wrap">georeferenceProtocol</div></th><th><div class="hortis-dataTable-sort-wrap">georeferenceRemarks</div></th><th><div class="hortis-dataTable-sort-wrap">individualCount</div></th><th><div class="hortis-dataTable-sort-wrap">identifiedBy</div></th><th><div class="hortis-dataTable-sort-wrap">iNaturalistTaxonId</div></th><th><div class="hortis-dataTable-sort-wrap">BEC</div></th><th><div class="hortis-dataTable-sort-wrap">Protected</div></th><th><div class="hortis-dataTable-sort-wrap">taxonName</div></th></tr></thead><tbody><tr data-row-index="0" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="0" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td><a target="_blank" href="http://data.rbge.org.uk/living/20160478">http://data.rbge.org.uk/living/20160478</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>E</td><td>20160478</td><td>Edinburgh, Howick Expedition to British Columbia (EHBC)</td><td>13</td><td>2016-08-25</td><td>Forest service road to Dakota Bog, Mt Elphinstone</td><td>49.498333</td><td>-123.578333</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>75240</td><td>6</td><td></td><td>Abies amabilis</td></tr><tr data-row-index="1" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="1" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td><a target="_blank" href="http://data.rbge.org.uk/living/20160477">http://data.rbge.org.uk/living/20160477</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>E</td><td>20160477</td><td>Edinburgh, Howick Expedition to British Columbia (EHBC)</td><td>12</td><td>2016-08-25</td><td>Forest service road to Dakota Bog, Mt Elphinstone</td><td>49.497778</td><td>-123.578889</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>75240</td><td>6</td><td></td><td>Abies amabilis</td></tr><tr data-row-index="2" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="2" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td><a target="_blank" href="http://data.rbge.org.uk/herb/E01021493">http://data.rbge.org.uk/herb/E01021493</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>E</td><td>E01021493</td><td>Edinburgh, Howick Expedition to British Columbia (EHBC)</td><td>12</td><td>2016-08-25</td><td>Forest service road to Dakota Bog, Mt Elphinstone</td><td>49.497778</td><td>-123.578889</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>75240</td><td>6</td><td></td><td>Abies amabilis</td></tr><tr data-row-index="3" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="3" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td>5ACFAB95-95C9-FE4D-BA27-BF17B4F57D6E</td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>UBC</td><td>V5324</td><td>John Davidson</td><td>s.n.</td><td>1912-08-16</td><td>Garibaldi Camp</td><td>49.9663768867129</td><td>-123.151015762854</td><td></td><td></td><td></td><td></td><td></td><td></td><td>[John Davidson]</td><td>75240</td><td>3</td><td></td><td>Abies amabilis</td></tr><tr data-row-index="4" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="4" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td><a target="_blank" href="https://www.inaturalist.org/observations/60339584">https://www.inaturalist.org/observations/60339584</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>iNaturalist</td><td>60339584</td><td>Taylor Justason</td><td></td><td>2020-09-20</td><td></td><td>49.392039</td><td>-123.21795</td><td></td><td></td><td></td><td></td><td></td><td></td><td>Taylor Justason</td><td>75240</td><td>8</td><td>1</td><td>Abies amabilis</td></tr><tr data-row-index="5" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="5" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td><a target="_blank" href="https://www.inaturalist.org/observations/127179772">https://www.inaturalist.org/observations/127179772</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>iNaturalist</td><td>127179772</td><td>Rand Rudland</td><td></td><td>2022-07-20</td><td></td><td>49.493145</td><td>-123.581872</td><td>430</td><td></td><td></td><td></td><td></td><td></td><td>FreckLes</td><td>75240</td><td>6</td><td></td><td>Abies amabilis</td></tr><tr data-row-index="6" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="6" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td><a target="_blank" href="https://www.inaturalist.org/observations/30584475">https://www.inaturalist.org/observations/30584475</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>iNaturalist</td><td>30584475</td><td>tommp</td><td></td><td>2019-08-10</td><td></td><td>49.394344</td><td>-123.212196</td><td></td><td></td><td></td><td></td><td></td><td></td><td>tommp</td><td>75240</td><td>8</td><td>1</td><td>Abies amabilis</td></tr><tr data-row-index="7" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="7" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td><a target="_blank" href="https://www.inaturalist.org/observations/51722101">https://www.inaturalist.org/observations/51722101</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>iNaturalist</td><td>51722101</td><td>Bridget Spencer</td><td></td><td>2020-07-01</td><td></td><td>49.397483</td><td>-123.204894</td><td>5</td><td></td><td></td><td></td><td></td><td></td><td>Stewart Wechsler</td><td>75240</td><td>6</td><td>1</td><td>Abies amabilis
+    <div data-fluid-hydrated="{&quot;attrs&quot;:{&quot;fluid-layers&quot;:&quot;howe.story&quot;},&quot;html&quot;:&quot;&quot;}" class="imerss-main imerss-loading" fluid-layers="howe.story"><div class="mxcw-leftPane" data-mxcw-startup-hidden="map"><div></div><div aria-orientation="horizontal" class="resize-bar resize-bar--vertical" aria-label="Resize panels" tabindex="0" role="separator"></div><div class="mxcw-data fld-imerss-nodismiss-map"><div class="mxcw-data-pane-widget mxcw-atlas-taxon-holder"><div></div></div><div aria-orientation="horizontal" class="resize-bar resize-bar--vertical" aria-label="Resize panels" tabindex="0" role="separator"></div><div class="mxcw-records-collapsed"><div class="mxcw-obs-table-controls"><button aria-expanded="false" aria-controls="mxcw-records-table" type="button" class="mxcw-records-toggle mxcw-data-widget-text">Records<span class="mxcw-records-filter-label"></span></button><button disabled aria-label="Clear the selected record" title="Clear the selected record" type="button" class="imerss-download-button mxcw-record-reset"><svg aria-hidden="true" height="24" width="24"><use href="#imerss-i-reset" /></svg></button><span title="Download records as CSV" class="imerss-download-button imerss-basic-tooltip"><svg height="24" width="24"><use href="#imerss-i-download" /></svg></span></div><div id="mxcw-records-table" class="mxcw-obs-table hortis-datatable hortis-dataTable-wrap"><div class="hortis-dataTable-scroll"><table><thead><tr><th class="hortis-dataTable-select-cell"></th><th style="width:1.75em"><div class="hortis-dataTable-sort-wrap"></div></th><th><div class="hortis-dataTable-sort-wrap">scientificName</div></th><th><div class="hortis-dataTable-sort-wrap">occurrenceID</div></th><th><div class="hortis-dataTable-sort-wrap">taxonID</div></th><th><div class="hortis-dataTable-sort-wrap">suborder</div></th><th><div class="hortis-dataTable-sort-wrap">genus</div></th><th><div class="hortis-dataTable-sort-wrap">specificEpithet</div></th><th><div class="hortis-dataTable-sort-wrap">infraspecificEpithet</div></th><th><div class="hortis-dataTable-sort-wrap">institutionCode</div></th><th><div class="hortis-dataTable-sort-wrap">catalogNumber</div></th><th><div class="hortis-dataTable-sort-wrap">recordedBy</div></th><th><div class="hortis-dataTable-sort-wrap">recordNumber</div></th><th><div class="hortis-dataTable-sort-wrap">eventDate</div></th><th><div class="hortis-dataTable-sort-wrap">locality</div></th><th><div class="hortis-dataTable-sort-wrap">decimalLatitude</div></th><th><div class="hortis-dataTable-sort-wrap">decimalLongitude</div></th><th><div class="hortis-dataTable-sort-wrap">coordinateUncertaintyInMeters</div></th><th><div class="hortis-dataTable-sort-wrap">georeferencedBy</div></th><th><div class="hortis-dataTable-sort-wrap">georeferenceVerificationStatus</div></th><th><div class="hortis-dataTable-sort-wrap">georeferenceProtocol</div></th><th><div class="hortis-dataTable-sort-wrap">georeferenceRemarks</div></th><th><div class="hortis-dataTable-sort-wrap">individualCount</div></th><th><div class="hortis-dataTable-sort-wrap">identifiedBy</div></th><th><div class="hortis-dataTable-sort-wrap">iNaturalistTaxonId</div></th><th><div class="hortis-dataTable-sort-wrap">BEC</div></th><th><div class="hortis-dataTable-sort-wrap">Protected</div></th><th><div class="hortis-dataTable-sort-wrap">taxonName</div></th></tr></thead><tbody><tr data-row-index="0" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="0" type="checkbox" class="hortis-dataTable-row-check"></td><td><button aria-label="Correct where this record was made, or add a note on it" title="Correct where this record was made, or add a note on it" data-curation-record="http://data.rbge.org.uk/living/20160478" type="button" class="mxcw-curation-bubble mxcw-curation-record-bubble"></button></td><td>Abies amabilis</td><td><a target="_blank" href="http://data.rbge.org.uk/living/20160478">http://data.rbge.org.uk/living/20160478</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>E</td><td>20160478</td><td>Edinburgh, Howick Expedition to British Columbia (EHBC)</td><td>13</td><td>2016-08-25</td><td>Forest service road to Dakota Bog, Mt Elphinstone</td><td>49.498333</td><td>-123.578333</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>75240</td><td>6</td><td></td><td>Abies amabilis</td></tr><tr data-row-index="1" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="1" type="checkbox" class="hortis-dataTable-row-check"></td><td><button aria-label="Correct where this record was made, or add a note on it" title="Correct where this record was made, or add a note on it" data-curation-record="http://data.rbge.org.uk/living/20160477" type="button" class="mxcw-curation-bubble mxcw-curation-record-bubble"></button></td><td>Abies amabilis</td><td><a target="_blank" href="http://data.rbge.org.uk/living/20160477">http://data.rbge.org.uk/living/20160477</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>E</td><td>20160477</td><td>Edinburgh, Howick Expedition to British Columbia (EHBC)</td><td>12</td><td>2016-08-25</td><td>Forest service road to Dakota Bog, Mt Elphinstone</td><td>49.497778</td><td>-123.578889</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>75240</td><td>6</td><td></td><td>Abies amabilis</td></tr><tr data-row-index="2" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="2" type="checkbox" class="hortis-dataTable-row-check"></td><td><button aria-label="Correct where this record was made, or add a note on it" title="Correct where this record was made, or add a note on it" data-curation-record="http://data.rbge.org.uk/herb/E01021493" type="button" class="mxcw-curation-bubble mxcw-curation-record-bubble"></button></td><td>Abies amabilis</td><td><a target="_blank" href="http://data.rbge.org.uk/herb/E01021493">http://data.rbge.org.uk/herb/E01021493</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>E</td><td>E01021493</td><td>Edinburgh, Howick Expedition to British Columbia (EHBC)</td><td>12</td><td>2016-08-25</td><td>Forest service road to Dakota Bog, Mt Elphinstone</td><td>49.497778</td><td>-123.578889</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>75240</td><td>6</td><td></td><td>Abies amabilis</td></tr><tr data-row-index="3" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="3" type="checkbox" class="hortis-dataTable-row-check"></td><td><button aria-label="Correct where this record was made, or add a note on it" title="Correct where this record was made, or add a note on it" data-curation-record="5ACFAB95-95C9-FE4D-BA27-BF17B4F57D6E" type="button" class="mxcw-curation-bubble mxcw-curation-record-bubble"></button></td><td>Abies amabilis</td><td>5ACFAB95-95C9-FE4D-BA27-BF17B4F57D6E</td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>UBC</td><td>V5324</td><td>John Davidson</td><td>s.n.</td><td>1912-08-16</td><td>Garibaldi Camp</td><td>49.9663768867129</td><td>-123.151015762854</td><td></td><td></td><td></td><td></td><td></td><td></td><td>[John Davidson]</td><td>75240</td><td>3</td><td></td><td>Abies amabilis</td></tr><tr data-row-index="4" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="4" type="checkbox" class="hortis-dataTable-row-check"></td><td><button aria-label="Correct where this record was made, or add a note on it" title="Correct where this record was made, or add a note on it" data-curation-record="https://www.inaturalist.org/observations/60339584" type="button" class="mxcw-curation-bubble mxcw-curation-record-bubble"></button></td><td>Abies amabilis</td><td><a target="_blank" href="https://www.inaturalist.org/observations/60339584">https://www.inaturalist.org/observations/60339584</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>iNaturalist</td><td>60339584</td><td>Taylor Justason</td><td></td><td>2020-09-20</td><td></td><td>49.392039</td><td>-123.21795</td><td></td><td></td><td></td><td></td><td></td><td></td><td>Taylor Justason</td><td>75240</td><td>8</td><td>1</td><td>Abies amabilis</td></tr><tr data-row-index="5" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="5" type="checkbox" class="hortis-dataTable-row-check"></td><td><button aria-label="Correct where this record was made, or add a note on it" title="Correct where this record was made, or add a note on it" data-curation-record="https://www.inaturalist.org/observations/127179772" type="button" class="mxcw-curation-bubble mxcw-curation-record-bubble"></button></td><td>Abies amabilis</td><td><a target="_blank" href="https://www.inaturalist.org/observations/127179772">https://www.inaturalist.org/observations/127179772</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>iNaturalist</td><td>127179772</td><td>Rand Rudland</td><td></td><td>2022-07-20</td><td></td><td>49.493145</td><td>-123.581872</td><td>430</td><td></td><td></td><td></td><td></td><td></td><td>FreckLes</td><td>75240</td><td>6</td><td></td><td>Abies amabilis</td></tr><tr data-row-index="6" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="6" type="checkbox" class="hortis-dataTable-row-check"></td><td><button aria-label="Correct where this record was made, or add a note on it" title="Correct where this record was made, or add a note on it" data-curation-record="https://www.inaturalist.org/observations/30584475" type="button" class="mxcw-curation-bubble mxcw-curation-record-bubble"></button></td><td>Abies amabilis</td><td><a target="_blank" href="https://www.inaturalist.org/observations/30584475">https://www.inaturalist.org/observations/30584475</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>iNaturalist</td><td>30584475</td><td>tommp</td><td></td><td>2019-08-10</td><td></td><td>49.394344</td><td>-123.212196</td><td></td><td></td><td></td><td></td><td></td><td></td><td>tommp</td><td>75240</td><td>8</td><td>1</td><td>Abies amabilis</td></tr><tr data-row-index="7" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="7" type="checkbox" class="hortis-dataTable-row-check"></td><td><button aria-label="Correct where this record was made, or add a note on it" title="Correct where this record was made, or add a note on it" data-curation-record="https://www.inaturalist.org/observations/51722101" type="button" class="mxcw-curation-bubble mxcw-curation-record-bubble"></button></td><td>Abies amabilis</td><td><a target="_blank" href="https://www.inaturalist.org/observations/51722101">https://www.inaturalist.org/observations/51722101</a></td><td>75240</td><td></td><td>Abies</td><td>Abies amabilis</td><td></td><td>iNaturalist</td><td>51722101</td><td>Bridget Spencer</td><td></td><td>2020-07-01</td><td></td><td>49.397483</td><td>-123.204894</td><td>5</td><td></td><td></td><td></td><td></td><td></td><td>Stewart Wechsler</td><td>75240</td><td>6</td><td>1</td><td>Abies amabilis
 </td></tr></tbody></table></div><div class="hortis-dataTable-pagination"><span class="hortis-dataTable-pageInfo">1–8 of 8</span><div class="hortis-dataTable-pageControls"><button disabled data-move="start">Start</button><button disabled data-move="prev">← Prev</button><button disabled data-move="next">Next →</button><button disabled data-move="end">End</button></div></div></div></div><div><div class="mxcw-solow-taxon-holder"><div class="mxcw-solow-taxon-pane fl-hidden"><div class="mxcw-taxon-image"></div><div class="mxcw-taxon-info"><div class="mxcw-taxon-name"></div><dl class="mxcw-taxon-fields"><dt>Date first seen:</dt><dd></dd><dt>Date last seen:</dt><dd></dd><dt>Total sightings:</dt><dd></dd><dt>Regional EP:</dt><dd></dd></dl><div></div></div></div></div><div class="mxcw-solow-radius-holder"><div class="mxcw-solow-radius"><div class="mxcw-solow-radius-title">Population radius (m)</div><div class="mxcw-solow-radius-slider-wrap"><div class="mxcw-solow-radius-track"><div style="width: 66.66666666666666%" class="mxcw-solow-radius-fill"></div><input value="4" aria-label="Population radius in metres" step="1" max="6" min="0" type="range" class="mxcw-solow-radius-input"></div></div><div class="mxcw-solow-radius-snap-markers"><div class="mxcw-solow-radius-snap-marker"><div class="mxcw-solow-radius-snap-tick"></div><div class="mxcw-solow-radius-snap-label">500</div></div><div class="mxcw-solow-radius-snap-marker"><div class="mxcw-solow-radius-snap-tick"></div><div class="mxcw-solow-radius-snap-label">750</div></div><div class="mxcw-solow-radius-snap-marker"><div class="mxcw-solow-radius-snap-tick"></div><div class="mxcw-solow-radius-snap-label">1k</div></div><div class="mxcw-solow-radius-snap-marker"><div class="mxcw-solow-radius-snap-tick"></div><div class="mxcw-solow-radius-snap-label">2k</div></div><div class="mxcw-solow-radius-snap-marker"><div class="mxcw-solow-radius-snap-tick"></div><div class="mxcw-solow-radius-snap-label">5k</div></div><div class="mxcw-solow-radius-snap-marker"><div class="mxcw-solow-radius-snap-tick"></div><div class="mxcw-solow-radius-snap-label">7.5k</div></div><div class="mxcw-solow-radius-snap-marker"><div class="mxcw-solow-radius-snap-tick"></div><div class="mxcw-solow-radius-snap-label">10k</div></div></div><div class="mxcw-solow-radius-current-value">5,000 m</div><div class="mxcw-solow-radius-note">*Aggregate sightings into populations: default = 5000 m</div></div></div></div><div aria-orientation="horizontal" class="resize-bar resize-bar--vertical" aria-label="Resize panels" tabindex="0" role="separator"></div><div class="mxcw-solow-records-collapsed"><div class="mxcw-obs-table-controls"><button aria-expanded="false" aria-controls="mxcw-solow-records-table" type="button" class="mxcw-records-toggle mxcw-data-widget-text">Records<span class="mxcw-solow-records-species"></span></button><button disabled aria-label="Clear the selected record" title="Clear the selected record" type="button" class="imerss-download-button mxcw-record-reset"><svg aria-hidden="true" height="24" width="24"><use href="#imerss-i-reset" /></svg></button><span title="Download this species' records as CSV" class="imerss-download-button imerss-basic-tooltip"><svg height="24" width="24"><use href="#imerss-i-download" /></svg></span></div><div id="mxcw-solow-records-table" class="mxcw-solow-records-table hortis-datatable hortis-dataTable-wrap"><div class="hortis-dataTable-scroll"><table><thead><tr><th class="hortis-dataTable-select-cell"></th></tr></thead><tbody></tbody></table></div><div class="hortis-dataTable-pagination"><span class="hortis-dataTable-pageInfo">No data</span><div class="hortis-dataTable-pageControls"><button disabled data-move="start">Start</button><button disabled data-move="prev">← Prev</button><button disabled data-move="next">Next →</button><button disabled data-move="end">End</button></div></div></div></div><div class="mxcw-dataPanes"><div class="mxcw-dataPane mxcw-dataPane-Vascular_BEC"><div></div><div class="mxcw-iNatPanels"></div><div><div></div></div></div><div class="mxcw-dataPane mxcw-dataPane-History"><div><div class="mxcw-dataPane-widgets"><div id="htmlwidget-2ca53d2653fea853f280" data-widget-id="speciesPlot" class="plotly html-widget"></div><script data-for="htmlwidget-2ca53d2653fea853f280" type="application/json">{"x":{"visdat":{"b7a444e07feb":["function () ","plotlyVisDat"]},"cur_data":"b7a444e07feb","attrs":{"b7a444e07feb":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":1900,"y":7,"type":"scatter","mode":"lines","line":{"color":"green"},"visible":true,"inherit":true},"b7a444e07feb.1":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910],"y":[7,8],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.2":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920],"y":[7,8,172],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.3":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930],"y":[7,8,172,184],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.4":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930,1940],"y":[7,8,172,184,199],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.5":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930,1940,1950],"y":[7,8,172,184,199,221],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.6":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930,1940,1950,1960],"y":[7,8,172,184,199,221,274],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.7":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930,1940,1950,1960,1970],"y":[7,8,172,184,199,221,274,357],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.8":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980],"y":[7,8,172,184,199,221,274,357,419],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.9":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980,1990],"y":[7,8,172,184,199,221,274,357,419,439],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.10":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000],"y":[7,8,172,184,199,221,274,357,419,439,505],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.11":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000,2010],"y":[7,8,172,184,199,221,274,357,419,439,505,592],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.12":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000,2010,2020],"y":[7,8,172,184,199,221,274,357,419,439,505,592,992],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true},"b7a444e07feb.13":{"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000,2010,2020,2024],"y":[7,8,172,184,199,221,274,357,419,439,505,592,992,1139],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"inherit":true}},"layout":{"height":230,"margin":{"b":40,"l":60,"t":25,"r":10},"title":{"text":"Vascular plant species recorded in Átl'ḵa7tsem/Howe Sound 1890-2024","font":{"size":14}},"showlegend":false,"xaxis":{"domain":[0,1],"automargin":true,"title":"Year","range":[1900,2024]},"yaxis":{"domain":[0,1],"automargin":true,"title":"Reported Species","range":[0,1139]},"meta":{"mx_widgetId":"speciesPlot"},"sliders":[{"active":0,"steps":[{"label":1900,"method":"restyle","args":["visible",[true,false,false,false,false,false,false,false,false,false,false,false,false,false]]},{"label":1910,"method":"restyle","args":["visible",[false,true,false,false,false,false,false,false,false,false,false,false,false,false]]},{"label":1920,"method":"restyle","args":["visible",[false,false,true,false,false,false,false,false,false,false,false,false,false,false]]},{"label":1930,"method":"restyle","args":["visible",[false,false,false,true,false,false,false,false,false,false,false,false,false,false]]},{"label":1940,"method":"restyle","args":["visible",[false,false,false,false,true,false,false,false,false,false,false,false,false,false]]},{"label":1950,"method":"restyle","args":["visible",[false,false,false,false,false,true,false,false,false,false,false,false,false,false]]},{"label":1960,"method":"restyle","args":["visible",[false,false,false,false,false,false,true,false,false,false,false,false,false,false]]},{"label":1970,"method":"restyle","args":["visible",[false,false,false,false,false,false,false,true,false,false,false,false,false,false]]},{"label":1980,"method":"restyle","args":["visible",[false,false,false,false,false,false,false,false,true,false,false,false,false,false]]},{"label":1990,"method":"restyle","args":["visible",[false,false,false,false,false,false,false,false,false,true,false,false,false,false]]},{"label":2000,"method":"restyle","args":["visible",[false,false,false,false,false,false,false,false,false,false,true,false,false,false]]},{"label":2010,"method":"restyle","args":["visible",[false,false,false,false,false,false,false,false,false,false,false,true,false,false]]},{"label":2020,"method":"restyle","args":["visible",[false,false,false,false,false,false,false,false,false,false,false,false,true,false]]},{"label":2024,"method":"restyle","args":["visible",[false,false,false,false,false,false,false,false,false,false,false,false,false,true]]}]}],"hovermode":"closest"},"source":"A","config":{"modeBarButtonsToAdd":["hoverclosest","hovercompare"],"showSendToCloud":false},"data":[{"x":[1900],"y":[7],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":true,"marker":{"color":"rgba(31,119,180,1)","line":{"color":"rgba(31,119,180,1)"}},"error_y":{"color":"rgba(31,119,180,1)"},"error_x":{"color":"rgba(31,119,180,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910],"y":[7,8],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(255,127,14,1)","line":{"color":"rgba(255,127,14,1)"}},"error_y":{"color":"rgba(255,127,14,1)"},"error_x":{"color":"rgba(255,127,14,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920],"y":[7,8,172],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(44,160,44,1)","line":{"color":"rgba(44,160,44,1)"}},"error_y":{"color":"rgba(44,160,44,1)"},"error_x":{"color":"rgba(44,160,44,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930],"y":[7,8,172,184],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(214,39,40,1)","line":{"color":"rgba(214,39,40,1)"}},"error_y":{"color":"rgba(214,39,40,1)"},"error_x":{"color":"rgba(214,39,40,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930,1940],"y":[7,8,172,184,199],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(148,103,189,1)","line":{"color":"rgba(148,103,189,1)"}},"error_y":{"color":"rgba(148,103,189,1)"},"error_x":{"color":"rgba(148,103,189,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930,1940,1950],"y":[7,8,172,184,199,221],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(140,86,75,1)","line":{"color":"rgba(140,86,75,1)"}},"error_y":{"color":"rgba(140,86,75,1)"},"error_x":{"color":"rgba(140,86,75,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930,1940,1950,1960],"y":[7,8,172,184,199,221,274],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(227,119,194,1)","line":{"color":"rgba(227,119,194,1)"}},"error_y":{"color":"rgba(227,119,194,1)"},"error_x":{"color":"rgba(227,119,194,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930,1940,1950,1960,1970],"y":[7,8,172,184,199,221,274,357],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(127,127,127,1)","line":{"color":"rgba(127,127,127,1)"}},"error_y":{"color":"rgba(127,127,127,1)"},"error_x":{"color":"rgba(127,127,127,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980],"y":[7,8,172,184,199,221,274,357,419],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(188,189,34,1)","line":{"color":"rgba(188,189,34,1)"}},"error_y":{"color":"rgba(188,189,34,1)"},"error_x":{"color":"rgba(188,189,34,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980,1990],"y":[7,8,172,184,199,221,274,357,419,439],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(23,190,207,1)","line":{"color":"rgba(23,190,207,1)"}},"error_y":{"color":"rgba(23,190,207,1)"},"error_x":{"color":"rgba(23,190,207,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000],"y":[7,8,172,184,199,221,274,357,419,439,505],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(31,119,180,1)","line":{"color":"rgba(31,119,180,1)"}},"error_y":{"color":"rgba(31,119,180,1)"},"error_x":{"color":"rgba(31,119,180,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000,2010],"y":[7,8,172,184,199,221,274,357,419,439,505,592],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(255,127,14,1)","line":{"color":"rgba(255,127,14,1)"}},"error_y":{"color":"rgba(255,127,14,1)"},"error_x":{"color":"rgba(255,127,14,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000,2010,2020],"y":[7,8,172,184,199,221,274,357,419,439,505,592,992],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(44,160,44,1)","line":{"color":"rgba(44,160,44,1)"}},"error_y":{"color":"rgba(44,160,44,1)"},"error_x":{"color":"rgba(44,160,44,1)"},"xaxis":"x","yaxis":"y","frame":null},{"x":[1900,1910,1920,1930,1940,1950,1960,1970,1980,1990,2000,2010,2020,2024],"y":[7,8,172,184,199,221,274,357,419,439,505,592,992,1139],"type":"scatter","mode":"lines","line":{"color":"green"},"visible":false,"marker":{"color":"rgba(214,39,40,1)","line":{"color":"rgba(214,39,40,1)"}},"error_y":{"color":"rgba(214,39,40,1)"},"error_x":{"color":"rgba(214,39,40,1)"},"xaxis":"x","yaxis":"y","frame":null}],"highlight":{"on":"plotly_click","persistent":false,"dynamic":false,"selectize":false,"opacityDim":0.20000000000000001,"selected":{"opacity":1},"debounce":0},"shinyEvents":["plotly_hover","plotly_click","plotly_selected","plotly_relayout","plotly_brushed","plotly_brushing","plotly_clickannotation","plotly_doubleclick","plotly_deselect","plotly_afterplot","plotly_sunburstclick"],"base_url":"https://plot.ly"},"evals":[],"jsHooks":[]}</script></div>
 </div><div class="mxcw-iNatPanels"></div><div><div></div></div></div><div class="mxcw-dataPane mxcw-dataPane-Status"><div></div><div class="mxcw-iNatPanels"></div><div><div></div></div></div><div class="mxcw-dataPane mxcw-dataPane-TopContributions"><div></div><div class="mxcw-iNatPanels"><div id="inat-components-TopContributions-0" class="mxcw-inat-components"></div></div><div><div></div></div></div><div class="mxcw-dataPane mxcw-dataPane-Protected"><div><div class="mxcw-dataPane-widgets"><div id="htmlwidget-5dc9afe26d31a6275601" data-widget-id="protectedAreas" class="plotly html-widget"></div><script data-for="htmlwidget-5dc9afe26d31a6275601" type="application/json">{"x":{"visdat":{"1081c205974b7":["function () ","plotlyVisDat"]},"cur_data":"1081c205974b7","attrs":{"1081c205974b7":{"y":{},"x":{},"opacity":0.80000000000000004,"color":{},"colors":["#8b4513","#ffff54","#0000ff","#00ffff","#ff69b4","#008000","#4682b4","#ff0000","#00ff00","#4b0082","#ffe4c4"],"alpha_stroke":1,"sizes":[10,100],"spans":[1,20],"type":"bar"}},"layout":{"margin":{"b":40,"l":60,"t":25,"r":10},"showlegend":false,"xaxis":{"domain":[0,1],"automargin":true,"categoryorder":"category ascending","title":"Species Reported by Protected Area"},"yaxis":{"domain":[0,1],"automargin":true,"title":"","width":1024,"type":"category","categoryorder":"array","categoryarray":["A - Park","Wildlife Management Area","Old Growth Management Areas (Mapped Legal)","Privately Owned Conservation Area","Sea To Sky Wildland Zones","Ecological Reserve","Conservancy","Other Effective Area-Based Conservation Measure","Protected Area","Wildlife Habitat Areas","Migratory Bird Sanctuary"]},"meta":{"mx_widgetId":"protectedAreas"},"hovermode":"closest"},"source":"A","config":{"modeBarButtonsToAdd":["hoverclosest","hovercompare"],"showSendToCloud":false},"data":[{"y":["A - Park"],"x":[492],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"A - Park","marker":{"color":"rgba(139,69,19,1)","line":{"color":"rgba(139,69,19,1)"}},"textfont":{"color":"rgba(139,69,19,1)"},"error_y":{"color":"rgba(139,69,19,1)"},"error_x":{"color":"rgba(139,69,19,1)"},"xaxis":"x","yaxis":"y","frame":null},{"y":["Wildlife Management Area"],"x":[159],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"Wildlife Management Area","marker":{"color":"rgba(255,228,196,1)","line":{"color":"rgba(255,228,196,1)"}},"textfont":{"color":"rgba(255,228,196,1)"},"error_y":{"color":"rgba(255,228,196,1)"},"error_x":{"color":"rgba(255,228,196,1)"},"xaxis":"x","yaxis":"y","frame":null},{"y":["Old Growth Management Areas (Mapped Legal)"],"x":[154],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"Old Growth Management Areas (Mapped Legal)","marker":{"color":"rgba(255,105,180,1)","line":{"color":"rgba(255,105,180,1)"}},"textfont":{"color":"rgba(255,105,180,1)"},"error_y":{"color":"rgba(255,105,180,1)"},"error_x":{"color":"rgba(255,105,180,1)"},"xaxis":"x","yaxis":"y","frame":null},{"y":["Privately Owned Conservation Area"],"x":[88],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"Privately Owned Conservation Area","marker":{"color":"rgba(70,130,180,1)","line":{"color":"rgba(70,130,180,1)"}},"textfont":{"color":"rgba(70,130,180,1)"},"error_y":{"color":"rgba(70,130,180,1)"},"error_x":{"color":"rgba(70,130,180,1)"},"xaxis":"x","yaxis":"y","frame":null},{"y":["Sea To Sky Wildland Zones"],"x":[63],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"Sea To Sky Wildland Zones","marker":{"color":"rgba(0,255,0,1)","line":{"color":"rgba(0,255,0,1)"}},"textfont":{"color":"rgba(0,255,0,1)"},"error_y":{"color":"rgba(0,255,0,1)"},"error_x":{"color":"rgba(0,255,0,1)"},"xaxis":"x","yaxis":"y","frame":null},{"y":["Ecological Reserve"],"x":[37],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"Ecological Reserve","marker":{"color":"rgba(0,0,255,1)","line":{"color":"rgba(0,0,255,1)"}},"textfont":{"color":"rgba(0,0,255,1)"},"error_y":{"color":"rgba(0,0,255,1)"},"error_x":{"color":"rgba(0,0,255,1)"},"xaxis":"x","yaxis":"y","frame":null},{"y":["Conservancy"],"x":[21],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"Conservancy","marker":{"color":"rgba(255,255,84,1)","line":{"color":"rgba(255,255,84,1)"}},"textfont":{"color":"rgba(255,255,84,1)"},"error_y":{"color":"rgba(255,255,84,1)"},"error_x":{"color":"rgba(255,255,84,1)"},"xaxis":"x","yaxis":"y","frame":null},{"y":["Other Effective Area-Based Conservation Measure"],"x":[12],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"Other Effective Area-Based Conservation Measure","marker":{"color":"rgba(0,128,0,1)","line":{"color":"rgba(0,128,0,1)"}},"textfont":{"color":"rgba(0,128,0,1)"},"error_y":{"color":"rgba(0,128,0,1)"},"error_x":{"color":"rgba(0,128,0,1)"},"xaxis":"x","yaxis":"y","frame":null},{"y":["Protected Area"],"x":[12],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"Protected Area","marker":{"color":"rgba(255,0,0,1)","line":{"color":"rgba(255,0,0,1)"}},"textfont":{"color":"rgba(255,0,0,1)"},"error_y":{"color":"rgba(255,0,0,1)"},"error_x":{"color":"rgba(255,0,0,1)"},"xaxis":"x","yaxis":"y","frame":null},{"y":["Wildlife Habitat Areas"],"x":[12],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"Wildlife Habitat Areas","marker":{"color":"rgba(75,0,130,1)","line":{"color":"rgba(75,0,130,1)"}},"textfont":{"color":"rgba(75,0,130,1)"},"error_y":{"color":"rgba(75,0,130,1)"},"error_x":{"color":"rgba(75,0,130,1)"},"xaxis":"x","yaxis":"y","frame":null},{"y":["Migratory Bird Sanctuary"],"x":[1],"opacity":0.80000000000000004,"type":"bar","orientation":"h","name":"Migratory Bird Sanctuary","marker":{"color":"rgba(0,255,255,1)","line":{"color":"rgba(0,255,255,1)"}},"textfont":{"color":"rgba(0,255,255,1)"},"error_y":{"color":"rgba(0,255,255,1)"},"error_x":{"color":"rgba(0,255,255,1)"},"xaxis":"x","yaxis":"y","frame":null}],"highlight":{"on":"plotly_click","persistent":false,"dynamic":false,"selectize":false,"opacityDim":0.20000000000000001,"selected":{"opacity":1},"debounce":0},"shinyEvents":["plotly_hover","plotly_click","plotly_selected","plotly_relayout","plotly_brushed","plotly_brushing","plotly_clickannotation","plotly_doubleclick","plotly_deselect","plotly_afterplot","plotly_sunburstclick"],"base_url":"https://plot.ly"},"evals":[],"jsHooks":[]}</script></div>
-</div><div class="mxcw-iNatPanels"></div><div><div></div></div></div><div class="mxcw-dataPane mxcw-dataPane-Solow"><div></div><div class="mxcw-iNatPanels"></div><div><div></div></div></div></div></div></div><div aria-orientation="vertical" class="resize-bar resize-bar--horizontal" aria-label="Resize panels" tabindex="0" role="separator"></div><div class="imerss-page"><div><div class="imerss-subnav">
+</div><div class="mxcw-iNatPanels"></div><div><div></div></div></div><div class="mxcw-dataPane mxcw-dataPane-Solow"><div></div><div class="mxcw-iNatPanels"></div><div><div></div></div></div><div class="mxcw-dataPane mxcw-dataPane-Curation"><div></div><div class="mxcw-iNatPanels"></div><div><div></div></div></div></div></div></div><div aria-orientation="vertical" class="resize-bar resize-bar--horizontal" aria-label="Resize panels" tabindex="0" role="separator"></div><div class="imerss-page"><div><div class="imerss-subnav">
     <nav class="hx-mx-auto hx-flex hx-items-center hx-justify-start hx-gap-2 hx-h-16 hx-px-6 hx-max-w-[90rem]"><a href="https://salishseabiodiversity.org/" title="Home" class="contrast-more:hx-text-gray-700 contrast-more:dark:hx-text-gray-100 hx-relative -hx-ml-2 hx-hidden hx-whitespace-nowrap hx-p-2 md:hx-inline-block hx-text-gray-600 hover:hx-text-gray-800 dark:hx-text-gray-400 dark:hover:hx-text-gray-200">
             <span class="hx-text-center">Home</span>
         </a><a href="https://salishseabiodiversity.org/data/" title="Data" class="contrast-more:hx-text-gray-700 contrast-more:dark:hx-text-gray-100 hx-relative -hx-ml-2 hx-hidden hx-whitespace-nowrap hx-p-2 md:hx-inline-block hx-text-gray-600 hover:hx-text-gray-800 dark:hx-text-gray-400 dark:hover:hx-text-gray-200">
@@ -6950,7 +8730,7 @@ fluid.def("hortis.valueFilter.row", {
         </a><button aria-label="Menu" type="button" class="hamburger-menu -hx-mr-2 hx-rounded hx-p-2 active:hx-bg-gray-400/20 md:hx-hidden"><svg stroke="currentColor" viewBox="0 0 24 24" fill="none" height="24"><g><path d="M4 8H20" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" /></g><g><path d="M4 16H20" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" /></g></svg></button>
     </nav>
 </div>
-</div><div class="mxcw-story-holder"><div class="max-xl:hx-hidden hx-h-0 hx-w-64 hx-shrink-0"></div><div class="mxcw-container"><div class="mxcw-content-holder"><div class="mxcw-section-nav"><nav aria-label="Section navigation" role="tablist" class="chevron-nav"><button class="chevron-tab" role="tab" type="button">Regional Diversity</button><button class="chevron-tab" role="tab" type="button">History</button><button class="chevron-tab" role="tab" type="button">Atlas</button><button class="chevron-tab" role="tab" type="button">Community Science</button><button class="chevron-tab" role="tab" type="button">Protected Areas</button><button class="chevron-tab" role="tab" type="button">Find the Plants</button></nav></div><div data-mxcw-startup-hidden="" class="mxcw-content imerss-nodismiss-map"><div class="mxcw-storyPane" data-pane="Vascular_BEC"><div><div><div id="howe-sounds-vascular-plant-diversity" class="section level2 mxcw-paneKey-Vascular_BEC"><h2>Howe Sound’s vascular plant diversity</h2><div class="mxcw-sectionInner"><div class="mxcw-sectionColumn">
+</div><div class="mxcw-story-holder"><div class="max-xl:hx-hidden hx-h-0 hx-w-64 hx-shrink-0"></div><div class="mxcw-container"><div class="mxcw-content-holder"><div class="mxcw-section-nav"><nav aria-label="Section navigation" role="tablist" class="chevron-nav"><button class="chevron-tab" role="tab" type="button">Regional Diversity</button><button class="chevron-tab" role="tab" type="button">History</button><button class="chevron-tab" role="tab" type="button">Atlas</button><button class="chevron-tab" role="tab" type="button">Community Science</button><button class="chevron-tab" role="tab" type="button">Protected Areas</button><button class="chevron-tab" role="tab" type="button">Find the Plants</button><button class="chevron-tab" role="tab" type="button">Living Data</button></nav></div><div data-mxcw-startup-hidden="" class="mxcw-content imerss-nodismiss-map"><div class="mxcw-storyPane" data-pane="Vascular_BEC"><div><div><div id="howe-sounds-vascular-plant-diversity" class="section level2 mxcw-paneKey-Vascular_BEC"><h2>Howe Sound’s vascular plant diversity</h2><div class="mxcw-sectionInner"><div class="mxcw-sectionColumn">
 
 <p>Over one thousand vascular plant species are known to occur within
 the Átl’ḵa7tsem/Howe Sound Biosphere, represented by 66611 occurrence
@@ -7087,7 +8867,16 @@ et al., 2025</a></p>
   </g>
 </svg>
 </div></div></div>
-</div></div></div></div></div><div aria-orientation="horizontal" class="resize-bar resize-bar--vertical" aria-label="Resize panels" tabindex="0" role="separator"></div><div data-mxcw-startup-hidden=""><div class="imerss-filters-collapsed"><div class="imerss-panel-label imerss-filters-header"><button aria-expanded="true" aria-controls="imerss-main-filters" type="button" class="imerss-filters-toggle">Filters:</button><div class="imerss-filter-controls"><svg height="24" width="24" class="imerss-reset-filter"><title>Reset all filters</title><use href="#imerss-i-filter-reset" /></svg><div></div></div></div><div id="imerss-main-filters"><div class="imerss-filter"></div><div class="imerss-status-filter imerss-filter"><div class="imerss-filter-title">Status:</div><div class="imerss-filter-body imerss-region-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="confirmed" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">confirmed</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="unconfirmed" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">historical</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="new" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">new</div></div></div></div><div class="imerss-collector-filter imerss-filter"><label for="fli-imerss-collector" class="imerss-filter-title">Recorder:</label><div class="imerss-filter-body imerss-filter-autocomplete"><div></div><div class="imerss-filter-clear imerss-basic-tooltip fl-hidden" title="Reset this filter"><svg height="24" width="24"><use href="#imerss-i-x-circle-close" /></svg></div></div></div><div class="imerss-locality-filter imerss-filter"></div><div class="imerss-time-filter imerss-filter"></div></div><div class="imerss-reporter imerss-record-reporter"><p>Displaying <b>8</b> of <span>8</span> records for <span>1</span> taxa</p></div><div class="imerss-main-checklist imerss-checklist-holder"><div class="imerss-panel-label"><span>Plants</span><span title="Download checklist as CSV" class="imerss-download-button imerss-basic-tooltip"><svg height="24" width="24"><use href="#imerss-i-download-wide" /></svg></span><span class="imerss-search-checklist"><span class="imerss-filter-autocomplete"><div></div><div class="imerss-filter-clear imerss-basic-tooltip fl-hidden" title="Reset this filter"><svg height="24" width="24"><use href="#imerss-i-x-circle-close" /></svg></div></span><svg height="32" width="32"><use href="#imerss-i-search-wide" /></svg></span></div><div class="imerss-checklist"><ul><li class="checklist-row checklist-rank-family"><span data-row-id="47562" class="pretty p-icon checklist-fold-control"><span class="state"><i class="icon mdi mdi-none"></i><label></label></span></span><p data-row-id="47562" class="checklist-scientific-name">Pinaceae</p> - <p data-row-id="47562" class="checklist-common-name">pine family</p><ul><li class="checklist-row checklist-rank-genus"><span data-row-id="54262" class="pretty p-icon checklist-fold-control active"><span class="state"><i class="icon mdi mdi-chevron-down"></i><label></label></span></span><p data-row-id="54262" class="checklist-scientific-name">Abies</p> - <p data-row-id="54262" class="checklist-common-name">firs</p><ul><li class="checklist-row checklist-rank-species"><span data-row-id="75240" class="pretty p-icon checklist-fold-control"><span class="state"><i class="icon mdi mdi-none"></i><label></label></span></span><svg height="18" width="18" class="imerss-checklist-decoration"><title>Confirmed: This historical record has been confirmed by a project contributor</title><use href="#tick" /></svg><p data-row-id="75240" class="checklist-scientific-name">Abies amabilis</p> - <p data-row-id="75240" class="checklist-common-name">Pacific silver fir</p></li></ul></li></ul></li></ul></div></div></div><div class="mxcw-solow-taxa-holder"><div class="mxcw-taxa-filters-holder imerss-filters-collapsed"><div class="imerss-panel-label imerss-filters-header"><button aria-expanded="true" type="button" class="imerss-filters-toggle">Filters:</button><div class="imerss-filter-controls"><svg height="24" width="24" class="imerss-reset-filter"><title>Reset all filters</title><use href="#imerss-i-filter-reset" /></svg><div></div></div></div><div class="imerss-filters imerss-taxa-filters"><div class="imerss-ep-filter imerss-filter imerss-ep-filter-body"><div class="imerss-filter-title">Extirpation probability (EP):</div><div class="imerss-filter-body mxcw-ep-range"><label><span>Min</span><input value="0" aria-label="Minimum extirpation probability" step="5" max="100" min="0" type="range" class="mxcw-ep-min"><output>0.00</output></label><label><span>Max</span><input value="100" aria-label="Maximum extirpation probability" step="5" max="100" min="0" type="range" class="mxcw-ep-max"><output>1.00</output></label></div></div><div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Infrataxon Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">infrataxon</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">non-infrataxon</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Introduction Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">native</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">exotic</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">unknown</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Provenance Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">voucher</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">no_voucher</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">unknown</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Conservation Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">concern</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">secure</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Graminoid status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">graminoid</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">non-graminoid</div></div></div></div></div></div></div><div class="hortis-dataTable-wrap"><div class="hortis-dataTable-scroll"><table><thead><tr><th class="hortis-dataTable-select-cell"></th><th><div class="hortis-dataTable-sort-wrap">Taxon name<button aria-label="Sort by Taxon name" data-key="scientificName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">EP<button aria-label="Sort by EP" data-key="solow_EP" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sort-descending" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Infrataxon Status<button aria-label="Sort by Infrataxon Status" data-key="infrataxon_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Introduction<button aria-label="Sort by Introduction" data-key="introduction_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Has Voucher<button aria-label="Sort by Has Voucher" data-key="provenance_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Conservation Status<button aria-label="Sort by Conservation Status" data-key="provincial_concern" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Common Name<button aria-label="Sort by Common Name" data-key="commonName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Reporting status<button aria-label="Sort by Reporting status" data-key="reportingStatus" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">ID<button aria-label="Sort by ID" data-key="id" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Link name<button aria-label="Sort by Link name" data-key="iNaturalistTaxonName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th></tr></thead><tbody><tr data-row-index="0" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="0" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td>0.0</td><td>non-infrataxon</td><td>native</td><td>voucher</td><td>secure</td><td>Pacific silver fir</td><td>confirmed</td><td>75240</td><td>Abies amabilis</td></tr></tbody></table></div><div class="hortis-dataTable-pagination"><span class="hortis-dataTable-pageInfo">1–1 of 1</span><div class="hortis-dataTable-pageControls"><button disabled data-move="start">Start</button><button disabled data-move="prev">← Prev</button><button disabled data-move="next">Next →</button><button disabled data-move="end">End</button></div></div></div></div></div></div></div></div></div>
+</div></div></div><div class="mxcw-storyPane" data-pane="Curation"><div><div id="community-curation" class="section level2 mxcw-paneKey-Curation"><h2>Community Curation</h2><div class="mxcw-sectionInner"><div class="mxcw-sectionColumn"><div class="mxcw-curation-invitation"><p>This report draws together what is known of the vascular plants of
+the Átl’ḵa7tsem/Howe Sound Biosphere Region, and its records are only as
+good as what we know of them. If you know whether a plant is still to be
+found here, whether it was planted, or whether it has failed to
+establish, please add your note.</p><p><strong>Click on any taxon in the checklist below</strong> to choose
+it for curation. You can also choose a taxon from any other part of the
+report, through the speech bubble beside its name.</p></div><div class="mxcw-curation-form-holder mxcw-curation-form-root"><div class="mxcw-curation-form"><div class="mxcw-curation-pending">Your comment has been submitted and is being processed</div><div class="mxcw-curation-rubric"><p><b>Help us place this record.</b> Your main task here is to correct where this record was made. If its marker
+                on the map is in the wrong place, drag the orange marker to where the plant was actually found, then submit
+                your correction. Add a comment saying how you know, e.g. the locality the record names, or a visit of your own.</p></div><div class="mxcw-curation-taxon"><div class="mxcw-curation-photo"></div><div class="mxcw-taxon-name"></div><dl class="mxcw-curation-names mxcw-curation-record"><dt>Taxon name:</dt><dd><i></i></dd><dt>Recorded by:</dt><dd></dd><dt>Date:</dt><dd></dd><dt>Locality:</dt><dd></dd><dt>Recorded position:</dt><dd></dd><dt>Record:</dt><dd class="mxcw-curation-record-id"><span></span></dd></dl></div><div class="mxcw-curation-tabs" aria-label="Type of note" role="tablist"><button role="tab" type="button" class="mxcw-curation-tab">Provenance</button><button role="tab" type="button" class="mxcw-curation-tab">Taxonomy</button></div><form onsubmit="return false"><div class="mxcw-curation-position"><span class="mxcw-curation-field-label">Corrected position:</span><span></span><button class="mxcw-curation-link" type="button">return the marker to the recorded position</button></div><div></div><div class="mxcw-curation-account"><span>Community curation is not yet connected to GitHub, so notes can't be submitted from this site yet.</span><span><button type="button" class="mxcw-curation-button">Sign in with GitHub</button>
+                    to add your note - or <a rel="noopener" target="_blank" href="https://github.com/signup">create a GitHub account</a></span><span>Signed in as <b></b><button type="button" class="mxcw-curation-link">sign out</button></span><button class="mxcw-curation-button mxcw-curation-submit" type="button"></button></div><div aria-live="polite" class="mxcw-curation-status"></div></form><div class="mxcw-curation-consensus"><h3>Community consensus</h3><div></div></div><button class="mxcw-curation-link mxcw-curation-choose" type="button">Back to the taxon</button><button type="button" class="mxcw-curation-link mxcw-curation-choose">Choose another taxon</button></div></div></div></div></div></div></div></div></div><div aria-orientation="horizontal" class="resize-bar resize-bar--vertical" aria-label="Resize panels" tabindex="0" role="separator"></div><div data-mxcw-startup-hidden=""><div class="imerss-filters-collapsed"><div class="imerss-panel-label imerss-filters-header"><button aria-expanded="true" aria-controls="imerss-main-filters" type="button" class="imerss-filters-toggle">Filters:</button><div class="imerss-filter-controls"><svg height="24" width="24" class="imerss-reset-filter"><title>Reset all filters</title><use href="#imerss-i-filter-reset" /></svg><div></div></div></div><div id="imerss-main-filters"><div class="imerss-filter"></div><div class="imerss-status-filter imerss-filter"><div class="imerss-filter-title">Status:</div><div class="imerss-filter-body imerss-region-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="confirmed" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">confirmed</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="unconfirmed" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">historical</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input data-status="new" type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">new</div></div></div></div><div class="imerss-collector-filter imerss-filter"><label for="fli-imerss-collector" class="imerss-filter-title">Recorder:</label><div class="imerss-filter-body imerss-filter-autocomplete"><div></div><div class="imerss-filter-clear imerss-basic-tooltip fl-hidden" title="Reset this filter"><svg height="24" width="24"><use href="#imerss-i-x-circle-close" /></svg></div></div></div><div class="imerss-locality-filter imerss-filter"></div><div class="imerss-time-filter imerss-filter"></div></div><div class="imerss-reporter imerss-record-reporter"><p>Displaying <b>8</b> of <span>8</span> records for <span>1</span> taxa</p></div><div class="imerss-main-checklist imerss-checklist-holder"><div class="imerss-panel-label"><span>Plants</span><span title="Download checklist as CSV" class="imerss-download-button imerss-basic-tooltip"><svg height="24" width="24"><use href="#imerss-i-download-wide" /></svg></span><span class="imerss-search-checklist"><span class="imerss-filter-autocomplete"><div></div><div class="imerss-filter-clear imerss-basic-tooltip fl-hidden" title="Reset this filter"><svg height="24" width="24"><use href="#imerss-i-x-circle-close" /></svg></div></span><svg height="32" width="32"><use href="#imerss-i-search-wide" /></svg></span></div><div class="imerss-checklist"><ul><li class="checklist-row checklist-rank-family"><span data-row-id="47562" class="pretty p-icon checklist-fold-control"><span class="state"><i class="icon mdi mdi-none"></i><label></label></span></span><p data-row-id="47562" class="checklist-scientific-name">Pinaceae</p> - <p data-row-id="47562" class="checklist-common-name">pine family</p><span aria-label="Add a community note on this taxon" role="button" data-curation-id="47562" class="mxcw-curation-bubble"></span><ul><li class="checklist-row checklist-rank-genus"><span data-row-id="54262" class="pretty p-icon checklist-fold-control active"><span class="state"><i class="icon mdi mdi-chevron-down"></i><label></label></span></span><p data-row-id="54262" class="checklist-scientific-name">Abies</p> - <p data-row-id="54262" class="checklist-common-name">firs</p><span aria-label="Add a community note on this taxon" role="button" data-curation-id="54262" class="mxcw-curation-bubble"></span><ul><li class="checklist-row checklist-rank-species"><span data-row-id="75240" class="pretty p-icon checklist-fold-control"><span class="state"><i class="icon mdi mdi-none"></i><label></label></span></span><svg height="18" width="18" class="imerss-checklist-decoration"><title>Confirmed: This historical record has been confirmed by a project contributor</title><use href="#tick" /></svg><p data-row-id="75240" class="checklist-scientific-name">Abies amabilis</p> - <p data-row-id="75240" class="checklist-common-name">Pacific silver fir</p><span aria-label="Add a community note on this taxon" role="button" data-curation-id="75240" class="mxcw-curation-bubble"></span></li></ul></li></ul></li></ul></div></div></div><div class="mxcw-solow-taxa-holder"><div class="mxcw-taxa-filters-holder imerss-filters-collapsed"><div class="imerss-panel-label imerss-filters-header"><button aria-expanded="true" type="button" class="imerss-filters-toggle">Filters:</button><div class="imerss-filter-controls"><svg height="24" width="24" class="imerss-reset-filter"><title>Reset all filters</title><use href="#imerss-i-filter-reset" /></svg><div></div></div></div><div class="imerss-filters imerss-taxa-filters"><div class="imerss-ep-filter imerss-filter imerss-ep-filter-body"><div class="imerss-filter-title">Extirpation probability (EP):</div><div class="imerss-filter-body mxcw-ep-range"><label><span>Min</span><input aria-label="Minimum extirpation probability" value="0" step="5" max="100" min="0" type="range" class="mxcw-ep-min"><output>0.00</output></label><label><span>Max</span><input aria-label="Maximum extirpation probability" value="100" step="5" max="100" min="0" type="range" class="mxcw-ep-max"><output>1.00</output></label></div></div><div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Infrataxon Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">infrataxon</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">non-infrataxon</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Introduction Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">native</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">exotic</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">unknown</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Provenance Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">voucher</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">no_voucher</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">unknown</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Conservation Status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">concern</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">secure</div></div></div></div><div class="imerss-value-filter imerss-filter"><div class="imerss-filter-title">Graminoid status:</div><div class="imerss-filter-body imerss-value-filter-rows"><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">graminoid</div></div><div class="imerss-filter-row"><div class="imerss-row-checkbox"><span class="pretty p-icon"><input type="checkbox" class="checklist-check"><span class="state p-success"><i class="icon mdi mdi-check"></i><label></label></span></span></div><div class="imerss-row-label">non-graminoid</div></div></div></div></div></div></div><div class="imerss-panel-label mxcw-solow-search"><span class="imerss-search-checklist"><span class="imerss-filter-autocomplete"><div></div><div class="imerss-filter-clear imerss-basic-tooltip fl-hidden" title="Reset this filter"><svg height="24" width="24"><use href="#imerss-i-x-circle-close" /></svg></div></span><svg height="32" width="32"><use href="#imerss-i-search-wide" /></svg></span></div><div class="hortis-dataTable-wrap"><div class="hortis-dataTable-scroll"><table><thead><tr><th class="hortis-dataTable-select-cell"></th><th><div class="hortis-dataTable-sort-wrap">Taxon name<button aria-label="Sort by Taxon name" data-key="scientificName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">EP<button aria-label="Sort by EP" data-key="solow_EP" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sort-descending" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Infrataxon Status<button aria-label="Sort by Infrataxon Status" data-key="infrataxon_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Introduction<button aria-label="Sort by Introduction" data-key="introduction_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Has Voucher<button aria-label="Sort by Has Voucher" data-key="provenance_status" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Conservation Status<button aria-label="Sort by Conservation Status" data-key="provincial_concern" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Common Name<button aria-label="Sort by Common Name" data-key="commonName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Reporting status<button aria-label="Sort by Reporting status" data-key="reportingStatus" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">ID<button aria-label="Sort by ID" data-key="id" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th><th><div class="hortis-dataTable-sort-wrap">Link name<button aria-label="Sort by Link name" data-key="iNaturalistTaxonName" class="hortis-dataTable-sort"><svg class="hortis-dataTable-icon"><use href="#sortable" /></svg></button></div></th></tr></thead><tbody><tr data-row-index="0" class="hortis-dataTable-selectable-row"><td class="hortis-dataTable-select-cell"><input data-row-index="0" type="checkbox" class="hortis-dataTable-row-check"></td><td>Abies amabilis</td><td>0.0</td><td>non-infrataxon</td><td>native</td><td>voucher</td><td>secure</td><td>Pacific silver fir</td><td>confirmed</td><td>75240</td><td>Abies amabilis</td></tr></tbody></table></div><div class="hortis-dataTable-pagination"><span class="hortis-dataTable-pageInfo">1–1 of 1</span><div class="hortis-dataTable-pageControls"><button disabled data-move="start">Start</button><button disabled data-move="prev">← Prev</button><button disabled data-move="next">Next →</button><button disabled data-move="end">End</button></div></div></div></div></div></div></div></div></div>
       <footer class="hextra-footer hx-bg-gray-100 hx-pb-[env(safe-area-inset-bottom)] dark:hx-bg-neutral-900 print:hx-bg-transparent"><div class="hextra-custom-footer hx-max-w-screen-xl hx-pl-[max(env(safe-area-inset-left),1.5rem)] hx-pr-[max(env(safe-area-inset-right),1.5rem)] hx-text-gray-600 dark:hx-text-gray-400"></div><div class="imerss-copyright">
         IMERSS · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>
       </div></footer>

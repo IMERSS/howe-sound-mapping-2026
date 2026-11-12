@@ -55,12 +55,23 @@ FILES=(
     static/bioreportr/sfc/bioreportr-recordAndTaxaReporter.vue
     static/bioreportr/sfc/bioreportr-sectionTab.vue
     static/bioreportr/sfc/bioreportr-solowRadius.vue
+    static/bioreportr/sfc/bioreportr-solowSearch.vue
     static/bioreportr/sfc/bioreportr-solowTaxa.vue
     static/bioreportr/sfc/bioreportr-solowTaxonInfo.vue
     static/bioreportr/sfc/bioreportr-statusFilter.vue
     static/bioreportr/sfc/bioreportr-storyMap.vue
     static/bioreportr/sfc/bioreportr-storyPage.vue
     static/bioreportr/sfc/bioreportr-storyPane.vue
+    # Community curation - see notes/community-curation-design.md. Each project has its own static/curation/config.json
+    # and its own content/story/Curation.Rmd, whose section each build writes into bioreportr-curationPane.vue
+    static/bioreportr/sfc/bioreportr-curationPane.vue
+    static/bioreportr/sfc/bioreportr-curationForm.vue
+    static/bioreportr/js/curation.js
+    src/js/consolidateCuration.js
+    src/curation/oauthWorker.mjs
+    src/curation/wrangler.toml
+    src/curation/enrol.mjs
+    .github/workflows/curation.yml
     static/bioreportr/js/story.js
     static/bioreportr/js/solow.js
     static/bioreportr/vendor/htmlwidgets.js
@@ -95,6 +106,7 @@ FILES=(
 
     # Shared R: blogdown hooks and map/geometry utilities
     R/build2.R
+    R/npm.R
     R/knit_render.R
     scripts/utils.R
     scripts/geomUtils.R

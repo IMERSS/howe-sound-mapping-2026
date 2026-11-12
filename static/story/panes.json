@@ -137,5 +137,19 @@
     "dataFile": null,
     "widgetIds": [],
     "layers": []
+  },
+  {
+    "title": "Community Curation",
+    "shortTitle": "Living Data",
+    "weight": 7,
+    "paneComponent": "bioreportr.curationPane",
+    "foldVizControlsOnTaxon": true,
+    "paneKey": "Curation",
+    "file": null,
+    "dataFile": null,
+    "widgetIds": [],
+    "layers": [
+      "reknitr.obsMapPaneHandler"
+    ]
   }
 ]

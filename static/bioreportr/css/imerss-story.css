@@ -4,6 +4,9 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    /* The height actually visible - on a phone, 100vh is that with the browser's toolbars put away, so that while they
+       show, the foot of the page, which scrolls within the body, would lie behind them where it can't be scrolled to */
+    height: 100dvh;
     background-color: #184E62;
     color: #FDF2CE;
 }
@@ -997,6 +1000,58 @@ h2 {
     .mobile-menu-overlay {
         background-color: transparent !important;
     }
+
+    /* A page without a sidebar, e.g. the story page, has the hamburger open instead a dropdown of the subnav's links,
+       copied beneath it by src/hextra/js/menu.js, styled as the sidebar's dropdown above */
+    .imerss-subnav {
+        position: relative;
+    }
+
+    .imerss-subnav-dropdown {
+        position: absolute;
+        top: 100%;
+        right: 1rem;
+        z-index: 300;
+        display: flex;
+        flex-direction: column;
+        min-width: 12rem;
+        padding: 6px 0;
+        background-color: #184E62;
+        border: 1px solid rgba(253, 242, 206, 0.35);
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+        opacity: 0;
+        visibility: hidden;
+        transform: translate3d(0, -0.5rem, 0);
+        transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+    }
+
+    .imerss-subnav-open .imerss-subnav-dropdown {
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+    }
+
+    /* While open, the subnav and whatever holds it rise above the section tabs beneath, which would cover the dropdown */
+    .imerss-subnav.imerss-subnav-open,
+    :has(> .imerss-subnav.imerss-subnav-open) {
+        z-index: 400 !important;
+    }
+
+    .imerss-subnav .imerss-subnav-dropdown a {
+        display: block;
+        margin: 0;
+        padding: 10px 18px;
+        color: #FDF2CE;
+    }
+}
+
+/* Wide enough for the subnav's own links, the dropdown is never shown */
+@media (min-width: 920px) {
+    .imerss-subnav-dropdown {
+        display: none;
+    }
 }
 
 /* Stacked layout - the subnav, then the map and its data pane, then the story are stacked in .imerss-main, which
@@ -1042,6 +1097,54 @@ h2 {
 
     .mxcw-story-holder {
         width: 100%;
+    }
+
+    /* Infusion 6 renders the subnav within a wrapper, which is the item of this column to be ordered and stuck */
+    .imerss-page > :has(> .imerss-subnav) {
+        order: -2;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        /* Opaque, since the banner's background scrolls away beneath it */
+        background: #184e62;
+    }
+
+    /* On a phone the reader meets the section tabs and the story first, and the map or gallery after them, rather
+       than having to scroll past a screenful of map to reach either */
+    .mxcw-story-holder {
+        order: -1;
+    }
+
+    /* The story runs to its full length within the page's own scrolling, rather than in a box of its own nested within
+       it. Only the panel of filters, records and species keeps a height of its own, within which its lists scroll */
+    .mxcw-container,
+    .mxcw-content-holder {
+        height: auto;
+    }
+
+    .mxcw-content {
+        height: auto;
+        overflow: visible;
+    }
+
+    .mxcw-container > .resize-bar {
+        display: none;
+    }
+
+    /* Qualified to outweigh the later rules giving this panel a share of the column's fixed height. Kept to about half
+       the screen, so that above or below it there is always page for a finger to scroll by - a list filling the screen
+       would take every swipe, and the page beneath it could not be reached */
+    .mxcw-story-holder .mxcw-container > .imerss-container {
+        flex: none;
+        height: 55vh;
+    }
+
+    /* A swipe which reaches the end of a list or panel goes on to scroll the page, rather than springing back */
+    .imerss-main .hortis-dataTable-scroll,
+    .imerss-main .mxcw-taxon-info,
+    .imerss-main .imerss-checklist,
+    .imerss-main .imerss-main-checklist {
+        overscroll-behavior-y: auto;
     }
 }
 
@@ -1384,7 +1487,7 @@ body {
     }
 }
 
-:is(.mxcw-paneKey-Status, .mxcw-paneKey-TopContributions, .mxcw-paneKey-Solow) h2 {
+:is(.mxcw-paneKey-Status, .mxcw-paneKey-TopContributions, .mxcw-paneKey-Solow, .mxcw-paneKey-Curation) h2 {
     color: #a8c8d0;
     font-size: var(--story-small);
     font-weight: 400;
@@ -1397,7 +1500,8 @@ body {
     margin: 0.5rem 0 var(--story-gap);
 }
 
-:is(.mxcw-paneKey-Status, .mxcw-paneKey-TopContributions, .mxcw-paneKey-Solow) .mxcw-sectionColumn > p {
+:is(.mxcw-paneKey-Status, .mxcw-paneKey-TopContributions, .mxcw-paneKey-Solow) .mxcw-sectionColumn > p,
+.mxcw-curation-invitation p {
     max-width: 31em;
     margin: 0 auto clamp(10px, 2.2vh, 22px);
     padding: 0;
@@ -1491,7 +1595,7 @@ body {
 }
 
 .mxcw-cell-tip {
-    width: 300px;
+    width: 240px;
     padding: 12px;
     color: #eefaff;
     font-size: 12px;
@@ -1517,19 +1621,31 @@ body {
     border-radius: 0 4px 4px 0;
 }
 
-.mxcw-cell-key {
-    display: flex;
-    gap: 12px;
-    margin-top: 4px;
-    color: #a8c8d0;
-    flex-wrap: wrap;
+/* The species and records of a cell of each reporting status, beneath the bar of its species - see
+   bioreportr.cellTooltip.render */
+.mxcw-cell-counts {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 3px 14px;
+    margin-top: 8px;
+    font-variant-numeric: tabular-nums;
 }
 
-.mxcw-cell-key i {
+.mxcw-cell-counts > span:nth-child(-n + 3) {
+    color: #a8c8d0;
+    font-size: 11px;
+}
+
+.mxcw-cell-counts > span:nth-child(3n + 2),
+.mxcw-cell-counts > span:nth-child(3n + 3) {
+    text-align: right;
+}
+
+.mxcw-cell-status i {
     display: inline-block;
     width: 8px;
     height: 8px;
-    margin-right: 4px;
+    margin-right: 6px;
     border-radius: 2px;
 }
 
@@ -1544,6 +1660,351 @@ body {
 
 .mxcw-cell-tip .mxcw-tip-note {
     margin-top: 2px;
+}
+
+/* The tooltip of a population of the extirpation risk map - its probability, with a swatch of its colour on the map,
+   above the figures from which it is computed. See bioreportr.solowMapLayer.renderTooltip */
+.mxcw-cell-tip.mxcw-population-tip {
+    width: auto;
+    min-width: 210px;
+    max-width: 260px;
+}
+
+/* It is shown as the map's own popup, framed as the page's tooltips are, without MapLibre's white box and arrow */
+.mxcw-population-popup {
+    z-index: 5;
+    pointer-events: none;
+}
+
+.mxcw-population-popup .maplibregl-popup-content {
+    padding: 0;
+    border: 1px solid #4a9aaa;
+    border-radius: 8px;
+    background: #0d3040;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.mxcw-population-popup .maplibregl-popup-tip {
+    display: none;
+}
+
+.mxcw-population-ep {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(168, 200, 208, 0.3);
+    font-size: 13px;
+}
+
+.mxcw-population-ep b {
+    margin-left: auto;
+    color: #fdf2ce;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+}
+
+.mxcw-population-swatch {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border: 1px solid rgba(238, 250, 255, 0.6);
+    border-radius: 50%;
+}
+
+.mxcw-population-stats {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 3px 14px;
+    margin: 0;
+}
+
+.mxcw-population-stats dt {
+    color: #a8c8d0;
+}
+
+.mxcw-population-stats dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.mxcw-population-stats dd span {
+    color: #a8c8d0;
+}
+
+/* ── Community curation - see notes/community-curation-design.md and static/bioreportr/js/curation.js ── */
+
+/* The speech bubble, outlined and filled, drawn as a mask so that it takes the colour of its background - beside each
+   taxon of the checklist, here, and each record of the table of records, in bioreportr-curationPane.vue */
+:root {
+    --mxcw-curation-bubble-outline: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2.2' stroke-linejoin='round' d='M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z'/%3E%3C/svg%3E");
+    --mxcw-curation-bubble-filled: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z'/%3E%3C/svg%3E");
+}
+
+/* The speech bubble beside each taxon of the checklist, shown on hovering over the taxon, and always, filled, once it
+   has notes. The bubble is drawn as a mask, so that it takes the colour of the checklist's labels */
+.imerss-checklist .mxcw-curation-bubble {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    margin-left: 6px;
+    vertical-align: -2px;
+    cursor: pointer;
+    visibility: hidden;
+    background-color: #4b778f;
+    -webkit-mask: var(--mxcw-curation-bubble-outline) center / contain no-repeat;
+    mask: var(--mxcw-curation-bubble-outline) center / contain no-repeat;
+}
+
+.imerss-checklist .mxcw-curation-bubble.mxcw-curation-noted {
+    visibility: visible;
+    -webkit-mask-image: var(--mxcw-curation-bubble-filled);
+    mask-image: var(--mxcw-curation-bubble-filled);
+}
+
+/* Only the taxon under the pointer shows its bubble, not every taxon above it in the tree */
+.imerss-checklist .checklist-row:hover:not(:has(.checklist-row:hover)) > .mxcw-curation-bubble {
+    visibility: visible;
+}
+
+.imerss-checklist .mxcw-curation-bubble:hover {
+    background-color: #184e62;
+}
+
+/* The tooltip of a bubble ends by inviting a note */
+.mxcw-curation-tip .mxcw-curation-tip-action {
+    display: block;
+    margin-top: 8px;
+    color: #fdf2ce;
+    text-decoration: underline;
+}
+
+/* The votes given on a taxon, one line to each question answered */
+.mxcw-curation-brief {
+    margin-top: 6px;
+}
+
+/* A summary pinned by clicking its bubble takes the pointer, so that its link may be followed and its text selected */
+.imerss-tooltip-holder.mxcw-tip-pinned {
+    pointer-events: auto;
+    user-select: text;
+}
+
+.mxcw-curation-tip .mxcw-curation-comments li {
+    margin-top: 4px;
+}
+
+.mxcw-curation-tally {
+    display: grid;
+    grid-template-columns: auto repeat(3, auto);
+    gap: 2px 10px;
+    margin-top: 8px;
+}
+
+.mxcw-curation-tally-question {
+    color: #a8c8d0;
+}
+
+.mxcw-curation-tally-count {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* The curation pane's invitation gives way to the form once a taxon is chosen */
+.mxcw-content .section:has(.mxcw-curation-form:not(.fl-hidden)) .mxcw-curation-invitation {
+    display: none;
+}
+
+/* The form, after the design in notes/emma-curation-design.png */
+.mxcw-curation-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--story-gap);
+    font-size: var(--story-data);
+    color: #eefaff;
+}
+
+.mxcw-curation-pending {
+    padding: 6px 10px;
+    border-left: 4px solid #fdf2ce;
+    border-radius: 4px;
+    background: rgba(253, 242, 206, 0.15);
+    color: #fdf2ce;
+    font-weight: 700;
+}
+
+/* The chosen taxon: its photo spans the column, keeping its proportions, and its name runs beneath as elsewhere */
+.mxcw-curation-taxon {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* The photo fills its holder, whose width is capped instead of the photo's height, so that the link to iNaturalist,
+   placed in the holder's corner, always sits on the photo's corner */
+.mxcw-curation-photo .taxonDisplay-image-holder {
+    display: block;
+    max-width: calc(42vh * 4 / 3);
+    margin: 0 auto;
+    padding: 0;
+}
+
+.mxcw-curation-photo .taxonDisplay-iNat-extern {
+    right: 6px;
+    bottom: 6px;
+}
+
+.mxcw-curation-photo .imerss-photo {
+    width: 100%;
+    /* Not the 300px to which imerss-core.css confines a photo, which would leave the link beyond its edge */
+    max-width: none;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--data-table-radius, 8px);
+    background-size: cover;
+    background-position: center;
+}
+
+.mxcw-curation-taxon .mxcw-taxon-name {
+    text-align: left;
+}
+
+.mxcw-curation-note-form fieldset {
+    margin: 0 0 var(--story-gap);
+    padding: 8px 12px 10px;
+    border: 1px solid rgba(168, 200, 208, 0.45);
+    border-radius: var(--data-table-radius, 8px);
+}
+
+.mxcw-curation-note-form legend {
+    padding: 0 6px;
+    color: #a8c8d0;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.mxcw-curation-vote-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) repeat(3, 5.5em);
+    align-items: center;
+    justify-items: center;
+    gap: 6px 0;
+}
+
+.mxcw-curation-vote-grid .mxcw-curation-vote-label {
+    justify-self: start;
+}
+
+.mxcw-curation-vote-head {
+    color: #a8c8d0;
+}
+
+.mxcw-curation-vote-grid input {
+    accent-color: #fdf2ce;
+    width: 16px;
+    height: 16px;
+}
+
+.mxcw-curation-comment textarea {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 4px;
+    background: #eefaff;
+    color: #123;
+    font: inherit;
+    resize: vertical;
+}
+
+.mxcw-curation-account {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+.mxcw-curation-account a {
+    color: #fdf2ce;
+}
+
+.mxcw-curation-button {
+    padding: 4px 14px;
+    border: 1px solid #fdf2ce;
+    border-radius: 4px;
+    background: #fdf2ce;
+    color: #0d3040;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.mxcw-curation-submit {
+    margin-left: auto;
+}
+
+.mxcw-curation-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #fdf2ce;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.mxcw-curation-choose {
+    align-self: flex-start;
+}
+
+.mxcw-curation-status:empty {
+    display: none;
+}
+
+.mxcw-curation-consensus h3 {
+    margin: 0 0 4px;
+    color: #a8c8d0;
+    font-size: var(--story-data);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.mxcw-curation-consensus .mxcw-curation-tally {
+    margin: 0 0 var(--story-gap);
+}
+
+/* Outweighs the reading text's markers of the lists of a pane */
+.mxcw-curation-consensus .mxcw-curation-notes {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.mxcw-curation-account .mxcw-curation-link {
+    margin-left: 4px;
+}
+
+.mxcw-curation-note {
+    padding: 6px 0;
+    border-top: 1px solid rgba(168, 200, 208, 0.25);
+}
+
+.mxcw-curation-note-head a {
+    margin-left: 6px;
+    color: #fdf2ce;
+}
+
+.mxcw-curation-note-answers {
+    color: #a8c8d0;
+}
+
+.mxcw-curation-note-comment {
+    margin-top: 2px;
+    white-space: pre-wrap;
 }
 
 /* ── The story page's own structure - see static/bioreportr/sfc/bioreportr-storyPage.vue ── */
