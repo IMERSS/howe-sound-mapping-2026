@@ -1,8 +1,8 @@
 {
     "backend": "github",
     "repository": "IMERSS/howe-sound-mapping-2026",
-    "repositoryId": "",
-    "category": "General",
-    "categoryId": "",
-    "oauthEndpoint": ""
+    "repositoryId": "R_kgDORCcO3g",
+    "category": "Curation",
+    "categoryId": "DIC_kwDORCcO3s4DLDB0",
+    "oauthEndpoint": "https://bioreportr-curation.imerss.workers.dev"
 }

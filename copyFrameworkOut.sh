@@ -66,11 +66,13 @@ FILES=(
     # and its own content/story/Curation.Rmd, whose section each build writes into bioreportr-curationPane.vue
     static/bioreportr/sfc/bioreportr-curationPane.vue
     static/bioreportr/sfc/bioreportr-curationForm.vue
-    static/bioreportr/js/curation.js
+    static/bioreportr/sfc/bioreportr-curation.vue
+    static/bioreportr/sfc/bioreportr-storyPageCuration.vue
     src/js/consolidateCuration.js
     src/curation/oauthWorker.mjs
     src/curation/wrangler.toml
     src/curation/enrol.mjs
+    src/curation/listDiscussions.mjs
     .github/workflows/curation.yml
     static/bioreportr/js/story.js
     static/bioreportr/js/solow.js
@@ -94,6 +96,10 @@ FILES=(
     layouts/partials/head-css.html
     layouts/_default/baseof.html
     layouts/partials/footer.html
+    # How a page is named in its tab, and described to sites it is shared on, from params of hugo.yaml - each project
+    # gives its own params.siteURL, and params.images for the image shown with a shared page
+    layouts/partials/head.html
+    layouts/partials/opengraph.html
     layouts/partials/language-switch.html
     layouts/partials/navbar.html
     layouts/partials/search.html

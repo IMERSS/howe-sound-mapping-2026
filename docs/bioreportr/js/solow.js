@@ -64,12 +64,53 @@ bioreportr.solowObsForTaxon = function (obsRows, taxonRow) {
 };
 
 /**
+ * Load the annotations of records which the project keeps, e.g. those of planted populations - see Saanich's
+ * scripts/apply_record_annotations.R. Each row names a record by its occurrenceID, with its `annotation`, whether it is
+ * suspended from the calculation of extirpation probability, `excludeFromEP`, and a `note`.
+ * @param {String|null} file - The CSV file of annotations, relative to the story page, or null if the project has none
+ * @return {Promise<Object<String, Object>>|Object<String, Object>} The annotation of each record, by its occurrenceID
+ */
+bioreportr.loadRecordAnnotations = function (file) {
+    return file ? hortis.csvReader.load(file, {header: true, skipEmptyLines: true}).then(parsed => {
+        const togo = {};
+        (parsed?.data || []).forEach(row => togo[row.occurrenceID] = {...row, excludeFromEP: /^true$/i.test(row.excludeFromEP)});
+        return togo;
+    }) : {};
+};
+
+/**
+ * The records of a taxon which count towards its extirpation probability - all but those suspended by an annotation.
+ * @param {Object[]} taxonObsRows - The taxon's records
+ * @param {Object<String, Object>} annotations - The annotations of records, by occurrenceID
+ * @return {Object[]} The records which count
+ */
+bioreportr.solowObsForEP = function (taxonObsRows, annotations) {
+    return taxonObsRows.filter(row => !annotations?.[row.occurrenceID]?.excludeFromEP);
+};
+
+/**
+ * Note the records of a taxon suspended from the calculation of its extirpation probability, and why.
+ * @param {Object[]} taxonObsRows - The taxon's records
+ * @param {Object<String, Object>} annotations - The annotations of records, by occurrenceID
+ * @return {String} The markup of the note, or "" if none of its records is suspended
+ */
+bioreportr.solowAnnotationNote = function (taxonObsRows, annotations) {
+    const suspended = taxonObsRows.filter(row => annotations?.[row.occurrenceID]?.excludeFromEP);
+    const ids = new Set(suspended.map(row => row.occurrenceID));
+    const notes = [...new Set(suspended.map(row => annotations[row.occurrenceID].note).filter(Boolean))];
+    return suspended.length ? `<div class="mxcw-solow-annotation-note" title="${hortis.dataTable.encode(notes.join(" "))}">` +
+        `${ids.size} ${ids.size === 1 ? "record" : "records"} set aside from EP: ${hortis.dataTable.encode([...new Set(suspended.map(row => annotations[row.occurrenceID].annotation))].join(", "))}</div>` : "";
+};
+
+/**
  * Compute the information shown about the chosen taxon.
  * @param {TaxonRow|null} taxon - The taxon, or null if none is chosen
  * @param {Object[]} taxonObsRows - Its observations, in order of date
+ * @param {Object<String, Object>} [annotations] - The annotations of records, by occurrenceID, of which any suspending
+ * records from the calculation of extirpation probability are noted
  * @return {Object} The information - with member `none` true if no taxon is chosen
  */
-bioreportr.solowTaxonInfo.model = function (taxon, taxonObsRows) {
+bioreportr.solowTaxonInfo.model = function (taxon, taxonObsRows, annotations) {
     return taxon && taxonObsRows.length > 0 ? {
         none: false,
         taxonName: taxon.scientificName + (taxon.commonName ? ` (${taxon.commonName})` : ""),
@@ -77,7 +118,7 @@ bioreportr.solowTaxonInfo.model = function (taxon, taxonObsRows) {
         dateLastSeen: bioreportr.eventDay(taxonObsRows[taxonObsRows.length - 1].eventDate),
         numObs: taxonObsRows.length,
         regionalEP: taxon.solow_EP,
-        georefNote: bioreportr.georefNote(taxonObsRows),
+        georefNote: bioreportr.georefNote(taxonObsRows) + bioreportr.solowAnnotationNote(taxonObsRows, annotations),
         taxonImage: hortis.renderTaxonImage(taxon.iNaturalistTaxonImage, taxon.id)
     } : {none: true, taxonName: "", dateFirstSeen: "", dateLastSeen: "", numObs: "", regionalEP: "", georefNote: "", taxonImage: ""};
 };
@@ -360,11 +401,20 @@ bioreportr.solowMapLayer.clusterAt = function (map, point) {
     return features[0]?.properties.clusterId ?? null;
 };
 
+// The furthest in pixels that a touch may travel, and the longest in milliseconds that it may last, to count as a tap -
+// as for the map's own cells and markers, see hortis.libreMap.bindTapTooltips in imerss-bioinfo
+bioreportr.solowMapLayer.tapSlop = 10;
+bioreportr.solowMapLayer.tapDuration = 500;
+
 /**
- * Report the population under the pointer to the layer's tooltip.
+ * Show the popup of the population under the pointer, or under a tap on a touch screen. MapLibre takes the touches
+ * made on the map for its own gestures, so that a tap sends neither the mouse movement which shows the popup to a
+ * mouse, nor a click - the tap is recognised from the pointer events, which still arrive, as imerss-bioinfo's
+ * hortis.libreMap.bindTapTooltips recognises taps on the map's cells and markers. A tap on a population shows its popup
+ * where it was tapped, and a tap on the map elsewhere, or anywhere else on the page, or moving the map, puts it away.
  * @param {bioreportr.solowMapLayer} that - The layer
  * @param {maplibregl.Map} map - The map
- * @return {Object} A record of the listeners, to be supplied to `hortis.libreMap.gridSelector.unbindHover`
+ * @return {Object} A record of the listeners
  */
 bioreportr.solowMapLayer.bindHover = function (that, map) {
     // Shown as the map's own popup, beside the population, rather than through the page's tooltips, so that it follows
@@ -394,6 +444,38 @@ bioreportr.solowMapLayer.bindHover = function (that, map) {
     };
     map.on("mousemove", listener);
     map.on("mouseout", leave);
+    const container = map.getContainer();
+    let start = null;
+    container.addEventListener("pointerdown", event => {
+        start = event.pointerType === "touch" && event.isPrimary ?
+            {id: event.pointerId, x: event.clientX, y: event.clientY, time: event.timeStamp} : null;
+    }, true);
+    container.addEventListener("pointerup", event => {
+        const tap = start;
+        start = null;
+        if (tap && event.pointerId === tap.id && event.timeStamp - tap.time <= bioreportr.solowMapLayer.tapDuration &&
+            Math.hypot(event.clientX - tap.x, event.clientY - tap.y) <= bioreportr.solowMapLayer.tapSlop) {
+            const rect = map.getCanvas().getBoundingClientRect();
+            const point = {x: event.clientX - rect.left, y: event.clientY - rect.top};
+            // As the pointer's movement to the tapped point would
+            listener({point, lngLat: map.unproject([point.x, point.y])});
+        }
+    }, true);
+    container.addEventListener("pointercancel", () => {
+        start = null;
+    }, true);
+    // A touch anywhere else on the page puts the popup away, as hortis.tooltip.dismissOnTouch does the page's tooltips
+    container.ownerDocument.addEventListener("pointerdown", event => {
+        if (event.pointerType === "touch" && !container.contains(event.target) && shown !== null) {
+            leave();
+        }
+    }, true);
+    // A move begun by a gesture, rather than by the map's own animation, leaves the popup behind its population
+    map.on("movestart", event => {
+        if (event.originalEvent && event.originalEvent.pointerType !== "mouse" && shown !== null) {
+            leave();
+        }
+    });
     return {map, listener, leave};
 };
 
