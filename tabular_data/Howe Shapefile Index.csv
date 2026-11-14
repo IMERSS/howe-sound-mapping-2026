@@ -1,3 +1,4 @@
 File,Field,Example value 1,Example value 2,Comment,Label,SortNumeric,NullAs,GroupField,GroupLabel
 BEC/BEC.shp,MAP_LABEL,CWHvm2,CMAunp,,BEC,,,,
+KBA/KBA.geojson,name,Squamish River,"English Bay, Burrard Inlet and Howe Sound","Published Key Biodiversity Areas, KBA Canada",KBA,,,all,
 Protected_Areas/Protected_Areas.geojson,name,Garibaldi Park,Squamish Estuary,"Individual protected and conserved areas, CPCAD",ProtectedArea,,,category,Protected

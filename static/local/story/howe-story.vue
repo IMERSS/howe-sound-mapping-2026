@@ -33,7 +33,7 @@ fluid.def("howe.story", {
     gridResolution: 1000,
     // The regions which may filter the records - a category of protected area is matched through rows of the region
     // index giving each area the label of its category, see GroupField in scripts/intersectShapes.R
-    regionFilterFieldNames: ["BEC", "ProtectedArea"],
+    regionFilterFieldNames: ["BEC", "ProtectedArea", "KBA"],
     // The Protected Areas pane may also select the native species reported in no protected area, and some of the
     // species of a region - see howe.protectedAreas.regionFilter
     regionFilter: {

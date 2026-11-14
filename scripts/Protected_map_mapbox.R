@@ -39,15 +39,16 @@ region_label <- function (field, index) {
 
 protected.areas <- mx_read("spatial_data/vectors/Protected_Areas/Protected_Areas.geojson")
 
-# Each record's area, and its area's category of protected area
+# Each record's area and KBA, and its area's category of protected area
 records <- plants %>%
   filter(iNaturalistTaxonId %in% plant.summary$id) %>%
-  mutate(area = region_label("ProtectedArea", ProtectedArea),
+  mutate(area = region_label("ProtectedArea", ProtectedArea), kba = region_label("KBA", KBA),
          category = protected.areas$category[match(area, protected.areas$name)])
 
 species.count <- function (ids) length(unique(ids))
 
 protected.ids <- unique(records$iNaturalistTaxonId[!is.na(records$category)])
+kba.ids <- unique(records$iNaturalistTaxonId[!is.na(records$kba)])
 concern.ids <- plant.summary$id[plant.summary$provincial_concern == "concern"]
 
 protected.stats <- list(
@@ -55,8 +56,10 @@ protected.stats <- list(
   protected = length(protected.ids),
   protected.percent = round(length(protected.ids) / nrow(plant.summary) * 100),
   unprotected = nrow(plant.summary) - length(protected.ids),
+  kba = length(kba.ids),
   concern = length(concern.ids),
-  concern.protected = sum(concern.ids %in% protected.ids)
+  concern.protected = sum(concern.ids %in% protected.ids),
+  concern.kba = sum(concern.ids %in% kba.ids)
 )
 
 # ── Map ───────────────────────────────────────────────────────────────────
@@ -121,17 +124,61 @@ protected.features <- lapply(seq_len(nrow(palette)), function (i) {
        outlineOpacity = 0.9, selectable = TRUE, Z_Order = 10)
 })
 
-# Layer 2: the biosphere region's boundary, a faint line which frames the study area without competing with it
+# The significance of a KBA and the groups of species for which it was identified, from KBA Canada's summary of its
+# criteria, e.g. "GLOBAL: A1 - Threatened species (vascular plants); B1 - ..."
+kba.significance <- function (criteria) {
+  level <- `if`(str_detect(criteria, "GLOBAL"), "Globally significant", "Nationally significant")
+  groups <- unique(unlist(str_split(str_match_all(criteria, "\\(([^)]*)\\)")[[1]][, 2], ", ")))
+  str_glue("{level} for {paste(groups, collapse = ', ')}")
+}
+
+kbas <- mx_read("spatial_data/vectors/KBA/KBA.geojson")
+kba.all <- "Published Key Biodiversity Areas"
+kba.counts <- records %>% filter(!is.na(kba)) %>% group_by(kba) %>% summarise(count = n_distinct(iNaturalistTaxonId))
+
+# Layer 2: the published KBAs, outlined in cream over the protected areas - clicking one selects it, and all of them
+# are selected together by their row in the chart
+kba.shapes <- kbas %>% mutate(
+  region = name,
+  group = kba.all,
+  count = coalesce(kba.counts$count[match(name, kba.counts$kba)], 0L),
+  card = as.character(str_glue("<span class=\"howe-pa-card-name\">{name}</span>",
+    "<span class=\"howe-pa-card-category howe-pa-card-kba\">Key Biodiversity Area</span>",
+    "<span class=\"howe-pa-card-owner\">{vapply(criteria, kba.significance, character(1))}</span>",
+    "<span class=\"howe-pa-card-count\"><b>{count}</b> native species reported</span>")))
+kba.source <- regions_to_mapbox_source(kba.shapes, "KBA.cards")
+kba.feature <- list(type = "vector", id = kba.all, source = "KBA.cards", outlineColor = "#FDF2CE", outlineWidth = 1.5,
+                    outlineOpacity = 0.95, fillColor = "#FDF2CE", fillOpacity = 0.06, selectable = TRUE, Z_Order = 20)
+
+# Layer 3: proposed Key Biodiversity Areas, whose boundaries are not yet public, as small rings around their points,
+# each described by a card but not selectable, since no records are labelled with them - drawn only if there are any
+proposed <- mx_read("spatial_data/vectors/KBA/KBA_proposed.geojson")
+if (nrow(proposed) > 0) {
+  proposed.rings <- st_transform(st_buffer(st_transform(proposed, 3005), 180), 4326) %>% mutate(
+    region = paste("Proposed KBA:", name),
+    group = "Proposed Key Biodiversity Areas",
+    card = as.character(str_glue("<span class=\"howe-pa-card-name\">{name}</span>",
+      "<span class=\"howe-pa-card-category howe-pa-card-kba\">Proposed Key Biodiversity Area</span>",
+      "<span class=\"howe-pa-card-owner\">{stage}\u2014its boundary is not yet public</span>")))
+  proposed.source <- regions_to_mapbox_source(proposed.rings, "Proposed KBA.cards")
+  proposed.features <- list(list(type = "vector", source = "Proposed KBA.cards", outlineColor = "#FDF2CE", outlineWidth = 1.5,
+                                 outlineOpacity = 0.95, fillColor = "#FDF2CE", fillOpacity = 0.25, selectable = FALSE, Z_Order = 23))
+} else {
+  proposed.source <- list()
+  proposed.features <- list()
+}
+
+# Layer 4: the biosphere region's boundary, a faint line which frames the study area without competing with it
 watershed.boundary <- mx_read("spatial_data/vectors/Howe_Sound")
 watershed.source <- sf_to_mapbox_sources(watershed.boundary, id = "Watershed.Boundary")
 watershed.feature <- list(type = "vector", source = "Watershed.Boundary", outlineColor = "#eefaff", outlineWidth = 1,
                           outlineOpacity = 0.3, fillOpacity = 0, Z_Order = 5)
 
-allSources <- merge_lists(area.source, watershed.source)
+allSources <- merge_lists(area.source, kba.source, proposed.source, watershed.source)
 
 view.feature <- list(type = "view", lon = -123.2194, lat = 49.66076, zoom = 8.5)
 
-allFeatures <- c(list(view.feature), protected.features, list(watershed.feature))
+allFeatures <- c(list(view.feature), protected.features, list(kba.feature), proposed.features, list(watershed.feature))
 
 protectedAreaMap <- plot_mapbox_map("Protected", allSources, allFeatures, "Protected")
 
@@ -157,7 +204,7 @@ bar_row <- function (name, count, max, color, areas, extra = "", selects = TRUE)
 unprotected.key <- "Unprotected native plant diversity"
 
 plotted <- palette %>% filter(count > 0) %>% arrange(desc(count))
-bar.max <- max(plotted$count, protected.stats$unprotected)
+bar.max <- max(plotted$count, protected.stats$kba, protected.stats$unprotected)
 
 # The overview of the categories, shown while none is selected
 overview.chart <- htmltools::tags$figure(class = "howe-pa-chart", `data-key` = "",
@@ -167,6 +214,7 @@ overview.chart <- htmltools::tags$figure(class = "howe-pa-chart", `data-key` = "
       bar_row(plotted$category[i], plotted$count[i], bar.max, plotted$color[i], plotted$areas[i])
     }),
     # The native species reported in no protected area, whose records the grid of the map then shows
+    bar_row(kba.all, protected.stats$kba, bar.max, "#FDF2CE", nrow(kbas), "howe-pa-kba"),
     bar_row(unprotected.key, protected.stats$unprotected, bar.max, "#e07a5f", NA, "howe-pa-unprotected")
   )
 )
@@ -195,7 +243,9 @@ group.charts <- c(
     group_chart(category, str_glue("Native species reported in each {tolower(category)}"),
                 st_drop_geometry(protected.areas) %>% filter(category == !!category) %>% transmute(name, count),
                 plotted$color[plotted$category == category])
-  })
+  }),
+  list(group_chart(kba.all, "Native species reported in each Key Biodiversity Area",
+                   st_drop_geometry(kba.shapes) %>% transmute(name, count), "#FDF2CE", "howe-pa-kba"))
 )
 
 # All the charts, shown beneath the map, one at a time as the selection picks it - see howe-protectedPane.vue
@@ -210,6 +260,7 @@ protected.area.bars <- htmltools::tags$div(class = "howe-pa-charts howe-pa-views
 # select them
 
 area.ha <- as.numeric(st_area(st_transform(protected.areas, 3005))) / 10000
+kba.ha <- as.numeric(st_area(st_transform(kbas, 3005))) / 10000
 ids_in <- function (keep) unique(records$iNaturalistTaxonId[keep])
 category.ids <- lapply(setNames(palette$category, palette$category), function (category) ids_in(records$category %in% category))
 percent <- function (n) round(n / protected.stats$species * 100)
@@ -331,8 +382,9 @@ area.cards <- lapply(seq_len(nrow(protected.areas)), function (i) {
 unprotected.ids <- setdiff(plant.summary$id, protected.ids)
 unprotected.records <- records %>% filter(iNaturalistTaxonId %in% unprotected.ids)
 unprotected.concern <- sum(unprotected.ids %in% concern.ids)
-# The card's figures select those species - all of them, and those of conservation concern
+# The card's figures select those species - all of them, those of conservation concern, and those within a KBA
 unprotected.concern.key <- subset(unprotected.key, concern.subset)
+unprotected.kba.key <- subset(unprotected.key, "within Key Biodiversity Areas")
 unprotected.card <- card(unprotected.key, "#e07a5f", "Unprotected native plant diversity",
   subtitle = str_glue("{protected.stats$unprotected} species · {format_n(nrow(unprotected.records))} records"),
   summary = str_glue("{protected.stats$unprotected} native plants ({percent(protected.stats$unprotected)}% of the ",
@@ -342,9 +394,41 @@ unprotected.card <- card(unprotected.key, "#e07a5f", "Unprotected native plant d
   stats = list(
     stat(protected.stats$unprotected, str_glue("native species · {percent(protected.stats$unprotected)}% of the native flora"),
          unprotected.key),
-    stat(unprotected.concern, "species of conservation concern", unprotected.concern.key)
+    stat(unprotected.concern, "species of conservation concern", unprotected.concern.key),
+    stat(sum(unprotected.ids %in% kba.ids), "recorded within a Key Biodiversity Area", unprotected.kba.key)
   ))
+
+kba.card <- card(kba.all, "#FDF2CE", "Key Biodiversity Areas",
+  subtitle = str_glue("{nrow(kbas)} published, {sum(str_detect(kbas$criteria, 'GLOBAL'))} of them globally significant · ",
+    "{nrow(proposed)} proposed · {format_n(sum(kba.ha))} hectares"),
+  summary = str_glue("Key Biodiversity Areas mark the places that matter most for the persistence of species and ",
+    "ecosystems. The region holds {nrow(kbas)} published Key Biodiversity Areas, identified chiefly for the birds that ",
+    "gather in Howe Sound and along the Squamish River. {protected.stats$kba} of the region's ",
+    "{protected.stats$species} native vascular plants ({percent(protected.stats$kba)}%) have been recorded within them."),
+  stats = list(
+    stat(protected.stats$kba, str_glue("native species · {percent(protected.stats$kba)}% of the native flora"),
+         subset(kba.all, native.subset)),
+    stat(protected.stats$concern.kba, "species of conservation concern", subset(kba.all, concern.subset)),
+    stat(format_n(sum(!is.na(records$kba))), "native plant records")
+  ),
+  list = richest("Richest in native species", st_drop_geometry(kba.shapes) %>% transmute(name, count)))
+
+kba.cards <- lapply(seq_len(nrow(kba.shapes)), function (i) {
+  kba <- kba.shapes[i, ]
+  ids <- ids_in(records$kba %in% kba$name)
+  card(kba$name, "#FDF2CE", kba$name,
+    subtitle = str_glue("Key Biodiversity Area · {kba.significance(kba$criteria)} · {format_n(kba.ha[i])} hectares"),
+    back = list(link(kba.all, "\u2191 Key Biodiversity Areas")),
+    summary = `if`(length(ids) == 0, str_glue("No native plants have yet been recorded in {kba$name}."),
+      str_glue("{length(ids)} native {ifelse(length(ids) == 1, 'plant has', 'plants have')} been recorded in {kba$name}, ",
+        "{percent(length(ids))}% of the region's native flora.")),
+    stats = list(
+      stat(length(ids), str_glue("native species · {percent(length(ids))}% of the native flora"), subset(kba$name, native.subset)),
+      stat(sum(ids %in% concern.ids), "species of conservation concern", subset(kba$name, concern.subset)),
+      stat(format_n(sum(records$kba %in% kba$name)), "native plant records")
+    ))
+})
 
 protected.area.summaries <- htmltools::tags$div(class = "howe-pa-summaries howe-pa-views",
   htmltools::tags$nav(class = "howe-pa-tabs", tab("", "All protected areas"), tab(unprotected.key, unprotected.key)),
-  overview.card, unprotected.card, category.cards, area.cards)
+  overview.card, unprotected.card, category.cards, area.cards, kba.card, kba.cards)

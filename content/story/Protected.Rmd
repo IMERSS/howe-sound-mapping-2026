@@ -32,9 +32,11 @@ sharing your observations with the
 [Átl’ḵa7tsem/Howe Sound Biosphere Region iNaturalist project](https://www.inaturalist.org/projects/atl-ka7tsem-howe-sound-biosphere-region).
 
 The map shows protected and conserved areas by category. Click an area on the map or in the chart to see the plants
-recorded there, or a category in the legend or the chart to see those recorded across all its areas. Choose
+recorded there, or a category in the legend or the chart to see those recorded across all its areas. Key Biodiversity Areas are
+outlined in cream. Choose
 *Unprotected native plant diversity* to see where the native plants not yet found in any protected area have been
 recorded.
 
 Protected areas are from the [Canadian Protected and Conserved Areas Database](https://www.canada.ca/en/environment-climate-change/services/national-wildlife-areas/protected-conserved-areas-database.html)
-(Environment and Climate Change Canada).
+(Environment and Climate Change Canada), and Key Biodiversity Areas from [KBA Canada](https://kbacanada.org/)
+(CC BY-NC-SA 4.0).

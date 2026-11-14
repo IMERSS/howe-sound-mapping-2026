@@ -90,14 +90,14 @@ fluid.def("bioreportr.curationPane", {
 <div id="community-curation" class="section level2 mxcw-paneKey-Curation"><h2>Community Curation</h2><div class="mxcw-sectionInner"><div class="mxcw-sectionColumn">
 
 <div class="mxcw-curation-invitation">
-<p>This report draws together what is known of the vascular plants of
-the Átl’ḵa7tsem/Howe Sound Biosphere Region, and its records are only as
-good as what we know of them. If you know whether a plant is still to be
-found here, whether it was planted, or whether it has failed to
-establish, please add your note.</p>
-<p><strong>Click on any taxon in the checklist below</strong> to choose
-it for curation. You can also choose a taxon from any other part of the
-report, through the speech bubble beside its name.</p>
+<p>We invite you to contribute to a living flora of the Átl’ḵa7tsem/Howe
+Sound Biosphere Region! Please help us to improve the accuracy of the
+data presented here by adding curatorial notes regarding the provenance,
+taxonomy, or georeferencing of records.</p>
+<p><span class="howe-callout">Click on any taxon in the checklist
+below</span> to add a curatorial note. You can also choose a taxon from
+any other part of the atlas, through the speech bubble beside its
+name.</p>
 </div>
 <div class="mxcw-curation-form-holder" @id="curationForm"></div>
 </div></div></div>

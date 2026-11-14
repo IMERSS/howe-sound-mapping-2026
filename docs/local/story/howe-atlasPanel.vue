@@ -21,6 +21,8 @@ fluid.def("howe.atlasPanel", {
     // The extirpation risk pane shows the same panel of its chosen plant, with its regional EP - as the W̱SÁNEĆ/Saanich
     // Peninsula's does
     solowDatedObs: "$compute:howe.atlas.dated({self}.solowTaxonObs)",
+    // The map pans and zooms to the records of the plant chosen in the extirpation risk pane's table
+    fitToSolowTaxon: "$effect:howe.atlas.fitToTaxon({self}.map.readyMap, {self}.solowTaxa.selectedTaxon, {self}.obsRows, {self}.map.zoomDuration, {self}.activePaneKey)",
     solowTaxonPanel: {
         $component: {
             markup: `$compute:howe.atlas.panelMarkup({storyPage}.solowTaxa.selectedTaxon, {storyPage}.solowDatedObs,
@@ -53,6 +55,29 @@ fluid.def("howe.atlasPanel", {
         }
     }
 });
+
+/**
+ * Fit the map to the records with coordinates of the plant chosen in the extirpation risk pane, as the W̱SÁNEĆ/Saanich
+ * Peninsula's saanich.fitToTaxon does.
+ * @param {maplibregl.Map} map - The story's map, once its style has applied
+ * @param {TaxonRow|null} taxon - The plant chosen, if any
+ * @param {Object[]} obsRows - All records
+ * @param {Number} duration - The duration in milliseconds of the map's smooth move to the records
+ * @param {String} activePaneKey - The key of the pane shown - the map is fitted only on the extirpation risk pane
+ */
+howe.atlas.fitToTaxon = function (map, taxon, obsRows, duration, activePaneKey) {
+    if (taxon && activePaneKey === "Solow") {
+        const points = bioreportr.solowObsForTaxon(obsRows, taxon).map(bioreportr.obsPoint).filter(point => point);
+        if (points.length > 0) {
+            hortis.libreMap.afterLayout(map, () => {
+                // The map may only just have been shown, in a pane which hid it
+                map.resize();
+                const bounds = points.reduce((box, point) => box.extend(point), new maplibregl.LngLatBounds(points[0], points[0]));
+                map.fitBounds(bounds, {padding: 80, maxZoom: 11, duration, essential: true});
+            });
+        }
+    }
+};
 
 // The dated records of a plant, as the panel charts them
 howe.atlas.dated = records => records.filter(record => record.eventDate);
@@ -902,5 +927,11 @@ howe.atlas.notesMarkup = function (taxon, records, historyById, sources, byTaxon
 .howe-howto em,
 .howe-howto strong {
     color: #FDF2CE;
+}
+
+/* A sentence of a pane's text called out, as the W̱SÁNEĆ/Saanich Peninsula's are */
+.howe-callout {
+    color: #FDF2CE;
+    font-weight: 700;
 }
 </style>

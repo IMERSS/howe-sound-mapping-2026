@@ -491,6 +491,33 @@
       ]
     },
     {
+      "type": "fill",
+      "id": "Published Key Biodiversity Areas",
+      "source": "KBA.cards",
+      "label": {},
+      "paint": {
+        "fill-color": "#FDF2CE",
+        "fill-opacity": 0.06
+      },
+      "metadata": {
+        "sortKey": 20,
+        "selectable": true
+      }
+    },
+    {
+      "type": "line",
+      "id": "Published Key Biodiversity Areas-outline",
+      "source": "KBA.cards",
+      "paint": {
+        "line-color": "#FDF2CE",
+        "line-width": 1.5,
+        "line-opacity": 0.95
+      },
+      "metadata": {
+        "sortKey": 20.5
+      }
+    },
+    {
       "type": "line",
       "id": "Watershed.Boundary-outline",
       "source": "Watershed.Boundary",

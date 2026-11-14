@@ -13,12 +13,12 @@ foldVizControlsOnTaxon: true
 ## Community Curation
 
 ::: {.mxcw-curation-invitation}
-This report draws together what is known of the vascular plants of the Átl’ḵa7tsem/Howe Sound Biosphere Region, and
-its records are only as good as what we know of them. If you know whether a plant is still to be found here, whether it
-was planted, or whether it has failed to establish, please add your note.
+We invite you to contribute to a living flora of the Átl’ḵa7tsem/Howe Sound Biosphere Region! Please help us to improve
+the accuracy of the data presented here by adding curatorial notes regarding the provenance, taxonomy, or
+georeferencing of records.
 
-**Click on any taxon in the checklist below** to choose it for curation. You can also choose a taxon from any other
-part of the report, through the speech bubble beside its name.
+<span class="howe-callout">Click on any taxon in the checklist below</span> to add a curatorial note. You can
+also choose a taxon from any other part of the atlas, through the speech bubble beside its name.
 :::
 
 ```{=html}

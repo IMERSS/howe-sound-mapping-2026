@@ -991,6 +991,10 @@ howe.protectedAreas.showSelection = function (selectedRegion, baseRegion, active
 <b>13</b>
 <span>species of conservation concern</span>
 </div>
+<div class="howe-pa-stat" data-select="Unprotected native plant diversity · within Key Biodiversity Areas" role="button" tabindex="0">
+<b>80</b>
+<span>recorded within a Key Biodiversity Area</span>
+</div>
 </div>
 </section>
 <section class="howe-pa-card-summary" data-key="Ecological reserve" hidden style="--pa-colour: #decb90">
@@ -2230,6 +2234,82 @@ howe.protectedAreas.showSelection = function (selectedRegion, baseRegion, active
 </div>
 </div>
 </section>
+<section class="howe-pa-card-summary" data-key="Published Key Biodiversity Areas" hidden style="--pa-colour: #FDF2CE">
+<h3 class="howe-pa-summary-title">Key Biodiversity Areas</h3>
+<p class="howe-pa-summary-subtitle">2 published, 2 of them globally significant · 0 proposed · 23,630 hectares</p>
+<p class="howe-pa-summary-text">Key Biodiversity Areas mark the places that matter most for the persistence of species and ecosystems. The region holds 2 published Key Biodiversity Areas, identified chiefly for the birds that gather in Howe Sound and along the Squamish River. 399 of the region's 782 native vascular plants (51%) have been recorded within them.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Published Key Biodiversity Areas · native species" role="button" tabindex="0">
+<b>399</b>
+<span>native species · 51% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Published Key Biodiversity Areas · species of conservation concern" role="button" tabindex="0">
+<b>8</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>10,123</b>
+<span>native plant records</span>
+</div>
+</div>
+<div class="howe-pa-richest-holder">
+<span class="howe-pa-richest-title">Richest in native species</span>
+<ol class="howe-pa-richest">
+<li>
+<span class="howe-pa-link" data-select="English Bay, Burrard Inlet and Howe Sound" role="button" tabindex="0">English Bay, Burrard Inlet and Howe Sound</span>
+<b>305</b>
+</li>
+<li>
+<span class="howe-pa-link" data-select="Squamish River" role="button" tabindex="0">Squamish River</span>
+<b>245</b>
+</li>
+</ol>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="English Bay, Burrard Inlet and Howe Sound" hidden style="--pa-colour: #FDF2CE">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Published Key Biodiversity Areas" role="button" tabindex="0">↑ Key Biodiversity Areas</span>
+</nav>
+<h3 class="howe-pa-summary-title">English Bay, Burrard Inlet and Howe Sound</h3>
+<p class="howe-pa-summary-subtitle">Key Biodiversity Area · Globally significant for birds · 21,366 hectares</p>
+<p class="howe-pa-summary-text">305 native plants have been recorded in English Bay, Burrard Inlet and Howe Sound, 39% of the region's native flora.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="English Bay, Burrard Inlet and Howe Sound · native species" role="button" tabindex="0">
+<b>305</b>
+<span>native species · 39% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="English Bay, Burrard Inlet and Howe Sound · species of conservation concern" role="button" tabindex="0">
+<b>5</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>5,961</b>
+<span>native plant records</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Squamish River" hidden style="--pa-colour: #FDF2CE">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Published Key Biodiversity Areas" role="button" tabindex="0">↑ Key Biodiversity Areas</span>
+</nav>
+<h3 class="howe-pa-summary-title">Squamish River</h3>
+<p class="howe-pa-summary-subtitle">Key Biodiversity Area · Globally significant for nonvascular plants, birds · 2,264 hectares</p>
+<p class="howe-pa-summary-text">245 native plants have been recorded in Squamish River, 31% of the region's native flora.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Squamish River · native species" role="button" tabindex="0">
+<b>245</b>
+<span>native species · 31% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Squamish River · species of conservation concern" role="button" tabindex="0">
+<b>4</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>4,162</b>
+<span>native plant records</span>
+</div>
+</div>
+</section>
 </div>
 
 <p>This is a preliminary assessment. Sampling effort is uneven across
@@ -2240,11 +2320,11 @@ Sound Biosphere Region iNaturalist project</a>.</p>
 <p>The map shows protected and conserved areas by category. Click an
 area on the map or in the chart to see the plants recorded there, or a
 category in the legend or the chart to see those recorded across all its
-areas. Choose <em>Unprotected native plant diversity</em> to see where
-the native plants not yet found in any protected area have been
-recorded.</p>
+areas. Key Biodiversity Areas are outlined in cream. Choose
+<em>Unprotected native plant diversity</em> to see where the native
+plants not yet found in any protected area have been recorded.</p>
 <p>Protected areas are from the <a href="https://www.canada.ca/en/environment-climate-change/services/national-wildlife-areas/protected-conserved-areas-database.html">Canadian
 Protected and Conserved Areas Database</a> (Environment and Climate
-Change Canada).</p>
+Change Canada), and Key Biodiversity Areas from <a href="https://kbacanada.org/">KBA Canada</a> (CC BY-NC-SA 4.0).</p>
 </div></div></div>
 </template>
