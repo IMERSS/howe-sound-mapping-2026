@@ -1,4 +1,4 @@
-"regionField","id","label"
+regionField,id,label
 BEC,1,CMAunp
 BEC,2,CWHdm
 BEC,3,CWHds1
@@ -8,14 +8,80 @@ BEC,6,CWHvm2
 BEC,7,CWHxm1
 BEC,8,MHmm1
 BEC,9,MHmm2
-Protected,1,A - Park
-Protected,2,Conservancy
-Protected,3,Ecological Reserve
-Protected,4,Migratory Bird Sanctuary
-Protected,5,Old Growth Management Areas (Mapped Legal)
-Protected,6,Other Effective Area-Based Conservation Measure
-Protected,7,Privately Owned Conservation Area
-Protected,8,Protected Area
-Protected,9,Sea To Sky Wildland Zones
-Protected,10,Wildlife Habitat Areas
-Protected,11,Wildlife Management Area
+ProtectedArea,1,Alice Lake Park
+ProtectedArea,2,Apodaca Park
+ProtectedArea,3,Bowen Island Ecological Reserve
+ProtectedArea,4,Brackendale Eagles Park
+ProtectedArea,5,Cape Roger Curtis Park
+ProtectedArea,6,Christie Islet Migratory Bird Sanctuary
+ProtectedArea,7,Cypress Park
+ProtectedArea,8,Este-Tiwilh/Sigurd Creek Conservancy
+ProtectedArea,9,Fairy Fen Nature Reserve
+ProtectedArea,10,Garibaldi Park
+ProtectedArea,11,Halkett Bay Marine Park
+ProtectedArea,12,Long Bay Wetland Nature Reserve
+ProtectedArea,13,Mt. Artaban
+ProtectedArea,14,Murrin Park
+ProtectedArea,15,Old Growth Management Areas (Mapped Legal)
+ProtectedArea,16,Pinecone Burke Park
+ProtectedArea,17,Plumper Cove Marine Park
+ProtectedArea,18,Porteau Cove Park
+ProtectedArea,19,Sandy Beach Nature Reserve
+ProtectedArea,20,Sea To Sky Wildland Zones
+ProtectedArea,21,Shannon Falls Park
+ProtectedArea,22,Singing Woods Nature Reserve
+ProtectedArea,23,Skwelwil'Em Squamish Estuary
+ProtectedArea,24,Squamish Estuary
+ProtectedArea,25,Stawamus Chief Park
+ProtectedArea,26,Stawamus Chief Protected Area
+ProtectedArea,27,Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Anvil Island)
+ProtectedArea,28,Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Dorman Point)
+ProtectedArea,29,Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lions Bay and Kelvin Grove)
+ProtectedArea,30,Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Queen Charlotte Channel)
+ProtectedArea,31,Tantalus Park
+ProtectedArea,32,Tetrahedron Park
+ProtectedArea,33,Wildlife Habitat Areas
+ProtectedArea,1,Provincial park
+ProtectedArea,2,Provincial park
+ProtectedArea,3,Ecological reserve
+ProtectedArea,4,Provincial park
+ProtectedArea,5,Private conservation land
+ProtectedArea,6,Migratory bird sanctuary
+ProtectedArea,7,Provincial park
+ProtectedArea,8,Conservancy
+ProtectedArea,9,Private conservation land
+ProtectedArea,10,Provincial park
+ProtectedArea,11,Provincial park
+ProtectedArea,12,Private conservation land
+ProtectedArea,13,Private conservation land
+ProtectedArea,14,Provincial park
+ProtectedArea,15,Old growth management area
+ProtectedArea,16,Provincial park
+ProtectedArea,17,Provincial park
+ProtectedArea,18,Provincial park
+ProtectedArea,19,Private conservation land
+ProtectedArea,20,Wildland zone
+ProtectedArea,21,Provincial park
+ProtectedArea,22,Private conservation land
+ProtectedArea,23,Wildlife management area
+ProtectedArea,24,Private conservation land
+ProtectedArea,25,Provincial park
+ProtectedArea,26,Protected area
+ProtectedArea,27,Other effective conservation measure
+ProtectedArea,28,Other effective conservation measure
+ProtectedArea,29,Other effective conservation measure
+ProtectedArea,30,Other effective conservation measure
+ProtectedArea,31,Provincial park
+ProtectedArea,32,Provincial park
+ProtectedArea,33,Wildlife habitat area
+Protected,1,Conservancy
+Protected,2,Ecological reserve
+Protected,3,Migratory bird sanctuary
+Protected,4,Old growth management area
+Protected,5,Other effective conservation measure
+Protected,6,Private conservation land
+Protected,7,Protected area
+Protected,8,Provincial park
+Protected,9,Wildland zone
+Protected,10,Wildlife habitat area
+Protected,11,Wildlife management area

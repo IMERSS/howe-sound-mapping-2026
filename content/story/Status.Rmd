@@ -27,12 +27,14 @@ observed <- plant.summary %>% filter(iNatObservationStatus == 'observed')
 
 ## Flora of Átl’ḵa7tsem/Howe Sound
 
-Through the combined efforts of `r length(unique(plants$recordedBy))` individuals, the Átl’ḵa7tsem/Howe Sound naturalist
-community has now documented a total of `r nrow(plant.summary)` vascular plant species. Based on search
-efforts over the last decade, `r round((nrow(confirmed)/(nrow(confirmed)+nrow(reported))*100), digits = 0)` percent
-of the historically reported plant diversity has been confirmed and `r nrow(new)` new species reports added to the
-list. Community members have now documented `r round((nrow(observed)/(nrow(plant.summary))*100), digits = 0)` percent
-of the plant diversity known to the region on iNaturalist.
+To date, `r nrow(plant.summary)` vascular plant species have been recorded in the Átl’ḵa7tsem/Howe Sound Biosphere
+Region, drawing together `r nrow(plants)` records from historical collections, iNaturalist observations and other
+sources. Each species falls into one of three groups: *confirmed* species, reported historically and recorded again
+in recent searches; *historical* species, reported in the past but not yet found again; and *new* species, first
+reported in the region in recent years.
+
+Pick a plant from the list to see only its records on the map, or open *Filters* to narrow the records by recorder.
+Open *Records* below the map for the details behind each selection.
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 source("scripts/Community_science_contributions_mapbox.R")

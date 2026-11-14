@@ -1,0 +1,2248 @@
+<script src="../../bioreportr/js/story.js"></script>
+<script>
+"use strict";
+
+// The Protected Areas pane of the Howe Sound story. Everything it shows follows the one selection of the story page,
+// selectedRegion - all the protected areas when none is selected, a category, an individual area, all the KBAs or a
+// KBA:
+//   - the map, drawn by the pane's region handler from scripts/Protected_map_mapbox.R, holds each shape once, with a
+//     layer for each category drawn from them by a filter - clicking an area or a KBA selects it, and a card
+//     describes it as it is hovered or tapped
+//   - the map's legend selects a category
+//   - the pane's text opens with a card summarising the selection, and the area below the map holds a chart of the
+//     categories, or of the areas within the selected one - both written as HTML by the script, as a card or chart
+//     for each selection, of which the one for the selection is shown by howe.protectedAreas.showSelection. Their
+//     rows and links select what they name
+//   - the records and the checklist are filtered to the selection, and a smaller panel of the plant chosen in the
+//     checklist gives its records within it
+// The behaviour is configured onto the story page by howe-story.vue as its member protectedAreas
+
+// noinspection ES6ConvertVarToLetConst // otherwise this is a duplicate on minifying
+var howe = fluid.registerNamespace("howe");
+fluid.registerNamespace("howe.protectedAreas");
+
+fluid.def("howe.protectedAreas", {
+    $layers: "fluid.component",
+    active: "$compute:bioreportr.storyPage.isActive({storyPage}.activePaneKey, Protected)",
+    hover: "$effect:howe.protectedAreas.bindCards({storyPage}, {storyPage}.map.readyMap, {storyPage}.mapData, {global})",
+    selects: "$effect:howe.protectedAreas.bindSelects({storyPage}, {global})",
+    shown: "$effect:howe.protectedAreas.showSelection({storyPage}.selectedRegion, {self}.baseRegion, {self}.active, {global})",
+    // The plant chosen in the checklist, with its records within the selected region, shown in a smaller panel beside
+    // the chart, in place of the atlas's
+    regionRecords: "$compute:howe.atlas.taxonRecords({storyPage}.finalFilteredObs, {storyPage}.taxa.rowById, {storyPage}.checklistTaxon)",
+    panelMarkup: "$compute:howe.protectedAreas.panelMarkup({storyPage}.checklistTaxon, {self}.regionRecords, {storyPage}.selectedRegion)",
+    // The native species reported in no protected area, and the ids of the native species, those of conservation
+    // concern and those reported within a KBA - see howe.protectedAreas.regionFilter
+    taxonSets: "$compute:howe.protectedAreas.taxonSets({storyPage}.obsRows, {storyPage}.taxa.rowById, {storyPage}.regionIndirection.rows)",
+    // The area, group or other region of the selection, without any subset of its species - outlined on the map, marked
+    // in the legend, and summarised by the card and chart shown
+    baseRegion: "$compute:howe.protectedAreas.baseRegion({storyPage}.selectedRegion)",
+    // Whether the map's grid is shown - by the active pane, or while the unprotected diversity is selected here. Read
+    // by the map, which is configured by howe-story.vue
+    gridVisible: "$compute:howe.protectedAreas.gridVisible({storyPage}.activePane.visibleGrid, {storyPage}.activePaneKey, {self}.baseRegion)"
+});
+
+// The selection of the native species reported in no protected area, as the script names it in its card, chart and
+// tab, and of all the protected areas together, whose card is the overview - see scripts/Protected_map_mapbox.R
+howe.protectedAreas.unprotected = "Unprotected native plant diversity";
+howe.protectedAreas.allAreas = "Protected areas";
+
+// The subsets of the species of a region which a figure of its card may select, in a selection such as
+// "Regional park · species of conservation concern", by the set of taxa of howe.protectedAreas.taxonSets they keep
+howe.protectedAreas.subsets = {
+    "native species": "native",
+    "species of conservation concern": "concern",
+    "within Key Biodiversity Areas": "kba",
+    "found in no other category": "unique"
+};
+
+/**
+ * Parse a selection into its region and any subset of that region's species.
+ * @param {String|null} selectedRegion - The selection, e.g. "Mount Work Regional Park · native species"
+ * @return {{region: String|null, subset: String|undefined}} The region, and the key of the subset if any
+ */
+howe.protectedAreas.parseSelection = function (selectedRegion) {
+    const parts = (selectedRegion || "").split(" \u00b7 ");
+    const subset = parts.length > 1 ? howe.protectedAreas.subsets[fluid.peek(parts)] : undefined;
+    return subset ? {region: parts.slice(0, -1).join(" \u00b7 "), subset} : {region: selectedRegion || null};
+};
+
+// The region of a selection, by whose card and chart it is shown - all the protected areas being shown by the overview
+howe.protectedAreas.baseRegion = function (selectedRegion) {
+    const region = howe.protectedAreas.parseSelection(selectedRegion).region;
+    return region === howe.protectedAreas.allAreas ? null : region;
+};
+
+/**
+ * The sets of taxa by which the selections of the pane filter the records - the native species of the summary which
+ * have no record within any protected area, as counted by scripts/Protected_map_mapbox.R, and the native species,
+ * those of conservation concern, and those with a record within a KBA; and, by category of protected area, the native
+ * species reported in it and in no other.
+ * @param {Object[]} obsRows - All the records
+ * @param {Object<String, TaxonRow>} rowById - The taxa, by id
+ * @param {Object[]} indirectionRows - The rows of the region index, which give each protected area its category
+ * @return {Object} Each set of ids - unprotected, native, concern and kba - and unique, the set of each category
+ */
+howe.protectedAreas.taxonSets = function (obsRows, rowById, indirectionRows) {
+    const isNative = id => {
+        const taxon = rowById[id];
+        return !!taxon && taxon.introduction_status === "native" && String(taxon.inSummary) === "1";
+    };
+    const idsWhere = test => new Set(obsRows.filter(test).map(row => String(row.iNaturalistTaxonId)));
+    const protectedIds = idsWhere(row => row.ProtectedArea);
+    const native = [...idsWhere(() => true)].filter(isNative);
+    return {
+        unprotected: new Set(native.filter(id => !protectedIds.has(id))),
+        native: new Set(native),
+        concern: new Set(native.filter(id => rowById[id].provincial_concern === "concern")),
+        kba: idsWhere(row => row.KBA),
+        unique: howe.protectedAreas.uniqueByCategory(obsRows, native, indirectionRows)
+    };
+};
+
+/**
+ * The native species reported in each category of protected area and in no other - as counted by
+ * scripts/Protected_map_mapbox.R. A record's area is labelled by its index among the rows of the region index for
+ * "ProtectedArea", whose rows for that index give the area's name and then its category, one of the labels of the rows
+ * for "Protected" - see GroupField in scripts/intersectShapes.R.
+ * @param {Object[]} obsRows - All the records
+ * @param {String[]} native - The ids of the native species
+ * @param {Object[]} indirectionRows - The rows of the region index
+ * @return {Object<String, Set<String>>} The ids of those species, by category
+ */
+howe.protectedAreas.uniqueByCategory = function (obsRows, native, indirectionRows) {
+    const categories = new Set(indirectionRows.filter(row => row.regionField === "Protected").map(row => row.label));
+    const categoryById = {};
+    indirectionRows.forEach(row => {
+        if (row.regionField === "ProtectedArea" && categories.has(row.label)) {
+            categoryById[row.id] = row.label;
+        }
+    });
+    const isNative = new Set(native);
+    const categoriesOf = {};
+    obsRows.forEach(row => {
+        const category = row.ProtectedArea && categoryById[row.ProtectedArea];
+        const id = String(row.iNaturalistTaxonId);
+        if (category && isNative.has(id)) {
+            (categoriesOf[id] = categoriesOf[id] || new Set()).add(category);
+        }
+    });
+    const togo = {};
+    Object.entries(categoriesOf).forEach(([id, found]) => {
+        if (found.size === 1) {
+            const [category] = found;
+            (togo[category] = togo[category] || new Set()).add(id);
+        }
+    });
+    return togo;
+};
+
+/**
+ * Filter the records to the selection: to its region, as bioreportr.regionSelectionFilter does, or to all the
+ * protected areas, or to the records of the native species outside them; and then to any subset of its species. The
+ * Protected Areas pane assesses the native flora alone, so that while it is shown only the records of native species
+ * are kept, and its checklist agrees with the counts of its cards.
+ * @param {Object[]} obsRows - The records to be filtered
+ * @param {String|null} selectedRegion - The selection, if any
+ * @param {Object[]} indirectionRows - The rows of the region index
+ * @param {String[]} fieldNames - The fields of the records holding regions which may be selected
+ * @param {Object<String, Set<String>>} taxonSets - The sets of taxa, see howe.protectedAreas.taxonSets
+ * @param {String} activePaneKey - The pane shown
+ * @return {Object[]} The records of the selection
+ */
+howe.protectedAreas.regionFilter = function (obsRows, selectedRegion, indirectionRows, fieldNames, taxonSets, activePaneKey) {
+    const {region, subset} = howe.protectedAreas.parseSelection(selectedRegion);
+    const inSet = (rows, set) => rows.filter(row => set.has(String(row.iNaturalistTaxonId)));
+    const regionRows = region === howe.protectedAreas.allAreas ? obsRows.filter(row => row.ProtectedArea) :
+        region === howe.protectedAreas.unprotected ? inSet(obsRows, taxonSets.unprotected) :
+            bioreportr.regionSelectionFilter(obsRows, region, indirectionRows, fieldNames);
+    const set = subset === "unique" ? taxonSets.unique[region] || new Set() : taxonSets[subset];
+    const subsetRows = subset ? inSet(regionRows, set) : regionRows;
+    return activePaneKey === "Protected" ? inSet(subsetRows, taxonSets.native) : subsetRows;
+};
+
+// The map's grid of records, hidden on this pane, shows where the native species outside protected areas grow when
+// they are selected
+howe.protectedAreas.gridVisible = (visibleGrid, activePaneKey, baseRegion) =>
+    !!visibleGrid || activePaneKey === "Protected" && baseRegion === howe.protectedAreas.unprotected;
+
+// The pane's section, rendered from the template below
+fluid.def("howe.protectedPane", {
+    $layers: "fluid.component"
+});
+
+/** The Protected Areas pane, whose chart and map select categories and individual areas **/
+
+/**
+ * Render the smaller panel of the plant chosen in the checklist which the pane shows beside its chart - its photo, names
+ * and status, and its records within the selected region, or anywhere if none is selected - without the atlas's charts
+ * of its history.
+ * @param {TaxonRow|null} taxon - The chosen plant
+ * @param {Object[]} records - Its dated records within the selected region, in date order
+ * @param {String|null} region - The selected region, if any
+ * @return {String} The panel's markup, empty if no plant with records there is chosen
+ */
+howe.protectedAreas.panelMarkup = function (taxon, records, region) {
+    let togo = "";
+    if (taxon && records.length > 0) {
+        const where = region ? `<div class="howe-pa-taxon-region">In ${hortis.dataTable.encode(region)}</div>` : "";
+        togo = `<div class="mxcw-solow-taxon-pane howe-atlas-taxon-pane howe-pa-taxon-pane">
+  <div class="mxcw-taxon-image">${hortis.renderTaxonImage(taxon.iNaturalistTaxonImage, taxon.id)}</div>
+  <div class="mxcw-taxon-info">
+    <div class="mxcw-taxon-name">${hortis.dataTable.encode((taxon.scientificName || taxon.iNaturalistTaxonName) + (taxon.commonName ? ` (${taxon.commonName})` : ""))}</div>
+    <div class="howe-atlas-facts">
+      ${where}
+      <dl class="mxcw-taxon-fields">
+        ${howe.atlas.field("Status", howe.atlas.statusLabel(taxon.reportingStatus))}
+        <dt>Records:</dt> <dd>${bioreportr.formatCount(records.length)}</dd>
+        <dt>First seen:</dt> <dd>${bioreportr.eventDay(records[0].eventDate)}</dd>
+        <dt>Last seen:</dt> <dd>${bioreportr.eventDay(fluid.peek(records).eventDate)}</dd>
+      </dl>
+    </div>
+  </div>
+</div>`;
+    }
+    return togo;
+};
+
+/**
+ * Choose the panel of the plant chosen in the checklist for the pane shown - this pane's smaller one, or else the
+ * atlas's.
+ * @param {String} activePaneKey - The pane shown
+ * @param {String} atlasMarkup - The atlas's panel
+ * @param {String} protectedMarkup - This pane's panel
+ * @return {String} The markup of the panel
+ */
+howe.protectedAreas.choosePanel = (activePaneKey, atlasMarkup, protectedMarkup) =>
+    activePaneKey === "Protected" ? protectedMarkup : atlasMarkup;
+
+// The panel is shown on the atlas and on this pane, while a plant with records is chosen
+howe.protectedAreas.panelVisible = (markup, activePaneKey) => !!markup && (activePaneKey === "Status" || activePaneKey === "Protected");
+
+/**
+ * Whether the Protected Areas pane is the one shown - read from the page, since the cards are shown from map events.
+ * @param {Document} dokkument - The page
+ * @return {Boolean} Whether its section is shown
+ */
+howe.protectedAreas.isShown = function (dokkument) {
+    const section = dokkument.querySelector(".mxcw-paneKey-Protected");
+    return !!(section && section.offsetParent);
+};
+
+// The maps whose individual areas already show their cards
+howe.protectedAreas.boundMaps = new WeakSet();
+
+/**
+ * Show a card describing each individual area as the pointer passes over it, or as it is tapped on a touch screen,
+ * while the pane is shown. The card's markup is the property `card` given to the area's shape by scripts/Protected_map_mapbox.R.
+ * MapLibre takes the touches made on the map for its own gestures, so that a tap sends neither a mouse movement nor
+ * a click - the tap is recognised from the pointer events, as bioreportr.solowMapLayer.bindHover does, and also selects
+ * the area tapped, as a click does.
+ * @param {bioreportr.storyPage} storyPage - The story page, whose selected region a tap sets
+ * @param {maplibregl.Map} map - The story's map, once ready
+ * @param {Object} mapData - The story's map data, whose style holds the areas' layers
+ * @param {Window} window - The window holding the map
+ */
+howe.protectedAreas.bindCards = function (storyPage, map, mapData, window) {
+    if (!map || !mapData || howe.protectedAreas.boundMaps.has(map)) {
+        return;
+    }
+    howe.protectedAreas.boundMaps.add(map);
+    // The layers whose shapes carry cards, in sources named "... .cards" - see regions_to_mapbox_source
+    const cardLayers = mapData.style.layers.filter(layer => layer.type === "fill" && layer.source?.endsWith(".cards"))
+        .map(layer => layer.id);
+    const card = window.document.createElement("div");
+    card.className = "howe-pa-card";
+    card.hidden = true;
+    map.getContainer().appendChild(card);
+    let shown = null;
+    // The layers with cards, found once the map's style holds them
+    let ids = [];
+    // Returns the id of the area shown, if any
+    const show = event => {
+        if (ids.length === 0) {
+            ids = cardLayers.filter(id => map.getLayer(id));
+        }
+        // The topmost shape under the pointer, so that a KBA is described rather than the area beneath it
+        const feature = howe.protectedAreas.isShown(window.document) && ids.length &&
+            map.queryRenderedFeatures(event.point, {layers: ids})[0];
+        const id = feature ? feature.properties.region : null;
+        if (id !== shown) {
+            card.innerHTML = id ? feature.properties.card : "";
+            shown = id;
+        }
+        card.hidden = !id;
+        if (id) {
+            const {width, height} = map.getContainer().getBoundingClientRect();
+            card.style.left = Math.max(8, Math.min(event.point.x + 16, width - card.offsetWidth - 8)) + "px";
+            card.style.top = Math.max(8, Math.min(event.point.y + 16, height - card.offsetHeight - 8)) + "px";
+        }
+        return id;
+    };
+    // At most once a frame, since finding the area under the pointer is costly over so many layers
+    let pending = null;
+    map.on("mousemove", event => {
+        if (pending === null) {
+            window.requestAnimationFrame(() => {
+                const latest = pending;
+                pending = null;
+                show(latest);
+            });
+        }
+        pending = event;
+    });
+    const container = map.getContainer();
+    let start = null;
+    container.addEventListener("pointerdown", event => {
+        start = event.pointerType === "touch" && event.isPrimary ?
+            {id: event.pointerId, x: event.clientX, y: event.clientY, time: event.timeStamp} : null;
+    }, true);
+    container.addEventListener("pointerup", event => {
+        const tap = start;
+        start = null;
+        if (tap && event.pointerId === tap.id && event.timeStamp - tap.time <= bioreportr.solowMapLayer.tapDuration &&
+            Math.hypot(event.clientX - tap.x, event.clientY - tap.y) <= bioreportr.solowMapLayer.tapSlop) {
+            const rect = map.getCanvas().getBoundingClientRect();
+            const id = show({point: {x: event.clientX - rect.left, y: event.clientY - rect.top}});
+            // A proposed KBA has a card but no records, so is not selected
+            if (id && !id.startsWith("Proposed KBA:")) {
+                bioreportr.storyPage.selectRegion(storyPage, id);
+            }
+        }
+    }, true);
+    container.addEventListener("pointercancel", () => {
+        start = null;
+    }, true);
+    map.getCanvas().addEventListener("mouseleave", () => {
+        card.hidden = true;
+        shown = null;
+    });
+};
+
+// The pages whose rows and links already select what they name
+howe.protectedAreas.boundPages = new WeakSet();
+
+/**
+ * Make the rows of the charts and the links of the summaries select what they name, as the map's legend and its
+ * shapes do - by click, or by Enter or Space from the keyboard. A row of a chart which is already selected clears the
+ * selection, as a row of the legend does; a link, e.g. back to all the protected areas, always selects what it names,
+ * all of them if it names nothing.
+ * @param {bioreportr.storyPage} storyPage - The story page, whose selected region they set
+ * @param {Window} window - The window holding the page
+ */
+howe.protectedAreas.bindSelects = function (storyPage, window) {
+    const dokkument = window.document;
+    if (howe.protectedAreas.boundPages.has(dokkument)) {
+        return;
+    }
+    howe.protectedAreas.boundPages.add(dokkument);
+    const select = target => {
+        const row = target.closest?.(".howe-pa-row[data-region]");
+        const link = target.closest?.("[data-select]");
+        if (link && link.matches(".howe-pa-stat") && link.getAttribute("aria-pressed") === "true") {
+            // A selected figure returns to all the species of its region
+            bioreportr.storyPage.selectRegion(storyPage, howe.protectedAreas.baseRegion(link.dataset.select));
+        } else if (row) {
+            bioreportr.storyPage.selectRegion(storyPage, row.getAttribute("aria-pressed") === "true" ? null : row.dataset.region);
+        } else if (link) {
+            bioreportr.storyPage.selectRegion(storyPage, link.dataset.select || null);
+        }
+        return !!(row || link);
+    };
+    dokkument.addEventListener("click", event => select(event.target));
+    dokkument.addEventListener("keydown", event => {
+        if ((event.key === "Enter" || event.key === " ") && select(event.target)) {
+            event.preventDefault();
+        }
+    });
+};
+
+/**
+ * Choose the view of a selection among those of a container - the one for the selection itself; failing that, the one
+ * listing it among its members, e.g. the chart of an area's category; failing that, the view of no selection.
+ * @param {Element[]} views - The views, each with a `data-key`, and any `data-members` as a JSON array
+ * @param {String|null} selectedRegion - The selection, if any
+ * @return {Element|undefined} The view to be shown
+ */
+howe.protectedAreas.viewFor = function (views, selectedRegion) {
+    const members = view => JSON.parse(view.dataset.members || "[]");
+    return selectedRegion && (views.find(view => view.dataset.key === selectedRegion) ||
+        views.find(view => members(view).includes(selectedRegion))) || views.find(view => view.dataset.key === "");
+};
+
+/**
+ * Show, in the summaries of the pane's text and the charts beneath the map, the view of the selection - see
+ * howe.protectedAreas.viewFor - bringing a newly shown summary into view, and mark the selected row of a chart, tab
+ * and figure.
+ * @param {String|null} selectedRegion - The selection, if any
+ * @param {String|null} baseRegion - Its region, without any subset of its species, whose views are shown
+ * @param {Boolean} active - Whether the pane is shown, when its views are rendered
+ * @param {Window} window - The window holding the page
+ */
+howe.protectedAreas.showSelection = function (selectedRegion, baseRegion, active, window) {
+    if (active) {
+        window.setTimeout(() => {
+            const dokkument = window.document;
+            dokkument.querySelectorAll(".howe-pa-views").forEach(container => {
+                const views = [...container.children].filter(view => view.dataset.key !== undefined);
+                const shown = howe.protectedAreas.viewFor(views, baseRegion);
+                const changed = shown && shown.hidden;
+                views.forEach(view => {
+                    view.hidden = view !== shown;
+                });
+                if (changed && container.classList.contains("howe-pa-summaries")) {
+                    shown.scrollIntoView({block: "nearest", behavior: "smooth"});
+                }
+            });
+            dokkument.querySelectorAll(".howe-pa-row[data-region]").forEach(row => {
+                row.setAttribute("aria-pressed", String(row.dataset.region === baseRegion));
+            });
+            // The tab of the unprotected diversity while any of it is selected, and otherwise that of all the protected
+            // areas; and the selected figure of a card
+            const unprotected = baseRegion === howe.protectedAreas.unprotected;
+            dokkument.querySelectorAll(".howe-pa-stat[data-select]").forEach(stat => {
+                stat.setAttribute("aria-pressed", String(stat.dataset.select === selectedRegion));
+            });
+            dokkument.querySelectorAll(".howe-pa-tab").forEach(tab => {
+                tab.setAttribute("aria-pressed", String(unprotected === (tab.dataset.select === howe.protectedAreas.unprotected)));
+            });
+        }, 0);
+    }
+};
+</script>
+
+<style>
+/* The data area below the map, while this pane is shown: the panel of the plant chosen in the checklist on the left,
+   while one is chosen, and the chart on the right, or across the whole width, with the records' bar beneath both as on
+   the other panes. As on the atlas while it shows a plant, the map and this area are given default heights, which the
+   resize bar between them may change, since neither is !important - the shared rule which would shrink the area to
+   the records' bar while they are collapsed leaves alone a pane showing widgets of its own there, see
+   imerss-viz-story.css */
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) {
+    --pa-data-height: 300px;
+}
+
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) > .mxcw-map {
+    /* Less the resize bar beneath it, as on the atlas */
+    height: calc(100% - var(--pa-data-height) - 14px);
+}
+
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) > .mxcw-data {
+    height: var(--pa-data-height);
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    /* The records' bar, collapsed, has a strip of the same height as on the other panes - see
+       --mxcw-records-header-height in imerss-viz-story.css */
+    grid-template-rows: minmax(0, 1fr) 40px;
+    grid-template-areas: "chart" "records";
+    align-items: stretch;
+}
+
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) > .mxcw-data:has(> .mxcw-atlas-has-taxon) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "taxon chart" "records records";
+}
+
+/* With the records open, they share the area with the panel and the chart */
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) > .mxcw-data:has(> .mxcw-obs-table-holder:not(.mxcw-records-collapsed)) {
+    grid-template-rows: minmax(0, 1fr) 220px;
+    row-gap: 8px;
+}
+
+/* Open, the records fill their strip, whatever height the bar between a taxon panel and the records, hidden here, last
+   gave them */
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) > .mxcw-data > .mxcw-obs-table-holder:not(.mxcw-records-collapsed) {
+    align-self: stretch;
+    height: auto !important;
+    display: flex;
+    flex-direction: column;
+}
+
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) > .mxcw-data > .mxcw-obs-table-holder:not(.mxcw-records-collapsed) > .mxcw-obs-table {
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+/* The plant's panel and the chart's card are inset alike from the column's edges and the map, with an even gutter
+   between them, and are of the same height */
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) > .mxcw-data > .mxcw-atlas-has-taxon {
+    grid-area: taxon;
+    height: auto;
+    min-height: 0;
+    margin: 8px 4px 0 8px;
+    overflow: hidden;
+}
+
+.mxcw-data:has(> .mxcw-atlas-has-taxon) .mxcw-dataPane-Protected .howe-pa-chart {
+    margin-left: 4px;
+}
+
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) > .mxcw-data > .resize-bar {
+    display: none;
+}
+
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) > .mxcw-data > .mxcw-obs-table-holder {
+    grid-area: records;
+    min-height: 0;
+}
+
+/* Collapsed, the bar is centred in its strip, as on the other panes */
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)) > .mxcw-data > .mxcw-obs-table-holder.mxcw-records-collapsed {
+    align-self: center;
+    height: 32px;
+}
+
+.mxcw-dataPane-Protected {
+    grid-area: chart;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* The wrappers of the chart fill its cell, within which it scrolls */
+.mxcw-dataPane-Protected > div,
+.mxcw-dataPane-Protected .mxcw-dataPane-widgets {
+    height: 100%;
+}
+
+/* With the records open, the area grows as the atlas's does, leaving the map the same height, and the records fill a
+   strip of the same height as the atlas's at the foot of the column, beneath the panel and the chart - unless the
+   resize bar has since given the map and the area heights of their own */
+.imerss-main .mxcw-leftPane.mxcw-leftPane:has(.mxcw-dataPane-Protected:not(.fl-hidden)):has(.mxcw-obs-table-holder:not(.mxcw-records-collapsed)) {
+    --pa-data-height: calc(100% - 222px);
+}
+
+/* The smaller panel of the plant, giving only its names, status and records within the selected region */
+.howe-pa-taxon-pane .mxcw-taxon-fields {
+    margin: 4px 0 0;
+}
+
+/* With no chart of the plant's history beside its facts, they take the panel's whole width, as a dl of two columns */
+.howe-atlas-taxon-pane.howe-pa-taxon-pane .mxcw-taxon-info {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: start;
+}
+
+.howe-pa-taxon-pane .howe-atlas-facts dl {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 1px 8px;
+}
+
+.howe-pa-taxon-pane .howe-atlas-facts dd {
+    margin: 0;
+}
+
+.howe-pa-taxon-region {
+    margin-top: 2px;
+    font-size: var(--story-small);
+    font-style: italic;
+}
+
+/* Beside the panel the chart is narrow, so its names give way and its counts of areas are left out */
+.howe-pa-chart {
+    container-type: inline-size;
+}
+
+@container (max-width: 440px) {
+    /* Outweighing the chart's own columns below */
+    .howe-pa-chart ul.howe-pa-rows {
+        grid-template-columns: minmax(0, 1.3fr) minmax(40px, 1fr) max-content;
+        column-gap: 8px;
+    }
+
+    .howe-pa-chart .howe-pa-name {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+
+    .howe-pa-chart .howe-pa-name small {
+        display: none;
+    }
+}
+
+/* The charts beneath the map, one shown at a time - see howe.protectedAreas.showSelection */
+.howe-pa-charts {
+    height: 100%;
+}
+
+.howe-pa-chart[hidden] {
+    display: none;
+}
+
+.howe-pa-chart .howe-pa-back {
+    margin-right: 10px;
+}
+
+/* Shown in the data area below the map - see mxcw-data-pane-html in src/js/storyBuild.js */
+/* A dark card, as the site's tiles and map cards are, set apart from the column's teal on which the records' bar sits,
+   and inset as that bar is */
+.howe-pa-chart {
+    box-sizing: border-box;
+    height: calc(100% - 8px);
+    margin: 8px 8px 0;
+    padding: 8px 14px;
+    overflow: auto;
+    color: #eefaff;
+    background: #0d3040;
+    border: 1px solid rgba(74, 154, 170, 0.45);
+    border-radius: var(--data-table-radius, 8px);
+}
+
+.howe-pa-chart figcaption {
+    margin-bottom: 4px;
+    font-size: var(--story-data);
+    font-weight: 700;
+    color: #eefaff;
+}
+
+.howe-pa-chart .howe-pa-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: max-content minmax(80px, 1fr) max-content;
+    column-gap: 10px;
+    row-gap: 3px;
+    align-items: center;
+    font-size: var(--story-data);
+}
+
+.howe-pa-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    margin: 0 -6px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    outline: 1px solid transparent;
+}
+
+.howe-pa-row[data-region] {
+    cursor: pointer;
+}
+
+.howe-pa-row[data-region]:hover,
+.howe-pa-row[data-region]:focus-visible {
+    background: rgba(168, 200, 208, 0.1);
+}
+
+.howe-pa-row[aria-pressed="true"] {
+    background: rgba(253, 242, 206, 0.12);
+    outline-color: #FDF2CE;
+}
+
+/* The card summarising the selection at the head of the pane's text - see howe.protectedAreas.showSelection. Its
+   colour is that of the selected category, or the KBAs' */
+.howe-pa-summaries {
+    margin: 0.4em 0 1em;
+}
+
+.howe-pa-card-summary {
+    padding: 10px 12px 12px;
+    background: #0d3040;
+    border-top: 3px solid var(--pa-colour);
+    border-radius: var(--data-table-radius, 8px);
+}
+
+.howe-pa-card-summary[hidden] {
+    display: none;
+}
+
+/* The tabs at the top right of the card, of all the protected areas and of the native plant diversity outside them,
+   the selected one joined to the card beneath */
+.howe-pa-tabs {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+.howe-pa-tab {
+    padding: 4px 10px;
+    font-size: var(--story-small);
+    color: #a8c8d0;
+    cursor: pointer;
+    background: rgba(13, 48, 64, 0.55);
+    border-radius: 6px 6px 0 0;
+}
+
+.howe-pa-tab:hover,
+.howe-pa-tab:focus-visible {
+    color: #eefaff;
+}
+
+.howe-pa-tab[aria-pressed="true"] {
+    color: #eefaff;
+    background: #0d3040;
+}
+
+.howe-pa-tabs ~ .howe-pa-card-summary {
+    border-top-right-radius: 0;
+}
+
+.howe-pa-crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.mxcw-sectionColumn .howe-pa-summary-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: var(--story-body);
+    color: #eefaff;
+}
+
+.howe-pa-summary-title::before {
+    content: "";
+    flex: none;
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    background: var(--pa-colour);
+}
+
+.mxcw-sectionColumn .howe-pa-summary-subtitle {
+    margin: 2px 0 8px 19px;
+    font-size: var(--story-small);
+    color: #a8c8d0;
+}
+
+.mxcw-sectionColumn .howe-pa-summary-text {
+    margin: 0 0 10px;
+    font-size: var(--story-data);
+    line-height: 1.45;
+    color: #c4dbe2;
+}
+
+/* The links of the summaries and charts, which select what they name - see howe.protectedAreas.bindSelects */
+.howe-pa-link {
+    cursor: pointer;
+    color: #eefaff;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+
+.howe-pa-link:hover,
+.howe-pa-link:focus-visible {
+    text-decoration-style: solid;
+}
+
+.howe-pa-crumbs .howe-pa-link,
+.howe-pa-back {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: var(--story-small);
+    font-weight: 400;
+    color: #a8c8d0;
+    text-decoration: none;
+    border: 1px solid rgba(168, 200, 208, 0.35);
+    border-radius: 5px;
+}
+
+.howe-pa-crumbs .howe-pa-link:hover,
+.howe-pa-crumbs .howe-pa-link:focus-visible,
+.howe-pa-back:hover,
+.howe-pa-back:focus-visible {
+    color: #eefaff;
+    background: rgba(168, 200, 208, 0.12);
+}
+
+/* The panel's figures, each a number over its meaning, in a grid as wide as the column allows */
+.howe-pa-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 8px 12px;
+}
+
+.howe-pa-stat {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+}
+
+.howe-pa-stat b {
+    font-size: 20px;
+    color: #eefaff;
+}
+
+.howe-pa-stat span {
+    font-size: var(--story-small);
+    color: #a8c8d0;
+}
+
+/* The figures of the unprotected diversity, each selecting its species, as the rows of a legend do */
+.howe-pa-stat[data-select] {
+    padding: 4px 8px;
+    margin: -4px -8px;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 1px solid transparent;
+}
+
+.howe-pa-stat[data-select]:hover,
+.howe-pa-stat[data-select]:focus-visible {
+    background: rgba(168, 200, 208, 0.1);
+}
+
+.howe-pa-stat[data-select][aria-pressed="true"] {
+    background: rgba(224, 122, 95, 0.16);
+    border-color: var(--pa-colour);
+}
+
+.howe-pa-richest-holder {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(168, 200, 208, 0.25);
+    font-size: var(--story-small);
+}
+
+.howe-pa-richest-title {
+    color: #a8c8d0;
+}
+
+.mxcw-sectionColumn .howe-pa-richest {
+    margin: 4px 0 0;
+    padding-left: 1.3em;
+}
+
+.howe-pa-richest li {
+    margin: 0;
+    color: #eefaff;
+}
+
+.howe-pa-richest li b {
+    margin-left: 6px;
+    color: #FDF2CE;
+}
+
+/* The card describing an individual area on the map, framed as the map's other cards - hidden by its attribute, which
+   its display would otherwise override */
+.howe-pa-card[hidden] {
+    display: none;
+}
+
+.howe-pa-card {
+    position: absolute;
+    z-index: 3;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 260px;
+    padding: 8px 12px;
+    color: #eefaff;
+    font-size: var(--story-data);
+    line-height: 1.35;
+    background: #0d3040;
+    border: 1px solid #4a9aaa;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.howe-pa-card-name {
+    font-weight: 700;
+}
+
+.howe-pa-card-category {
+    color: #a8c8d0;
+}
+
+.howe-pa-card-category::before {
+    content: "";
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 6px;
+    border-radius: 2px;
+    background: var(--pa-colour);
+}
+
+.howe-pa-card-kba {
+    --pa-colour: #FDF2CE;
+}
+
+.howe-pa-card-owner {
+    font-size: var(--story-small);
+    color: #a8c8d0;
+}
+
+.howe-pa-card-count b {
+    color: #FDF2CE;
+}
+
+.howe-pa-name {
+    color: #eefaff;
+    line-height: 1.2;
+}
+
+.howe-pa-name small {
+    font-size: var(--story-small);
+    color: #a8c8d0;
+    white-space: nowrap;
+}
+
+.howe-pa-track {
+    height: 10px;
+    border-radius: 5px;
+    background: rgba(168, 200, 208, 0.12);
+    overflow: hidden;
+}
+
+.howe-pa-bar {
+    display: block;
+    height: 100%;
+    border-radius: 5px;
+    background: var(--pa-colour);
+}
+
+.howe-pa-count {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: #eefaff;
+}
+
+/* The KBAs overlap the protected areas, so their row is set apart below the categories */
+.howe-pa-kba .howe-pa-name,
+.howe-pa-kba .howe-pa-track,
+.howe-pa-kba .howe-pa-count {
+    margin-top: 6px;
+    padding-top: 0;
+}
+
+.howe-pa-kba .howe-pa-name {
+    color: #FDF2CE;
+}
+
+.howe-pa-kba .howe-pa-bar {
+    background: repeating-linear-gradient(135deg, #FDF2CE 0 4px, rgba(253, 242, 206, 0.55) 4px 7px);
+}
+
+/* The native species outside every protected area, the remainder of the flora, set apart as the KBAs are */
+.howe-pa-unprotected .howe-pa-name,
+.howe-pa-unprotected .howe-pa-track,
+.howe-pa-unprotected .howe-pa-count {
+    margin-top: 6px;
+}
+
+.howe-pa-unprotected .howe-pa-name {
+    color: #f2b8a6;
+}
+
+</style>
+
+<!-- The <template> block below is written by src/js/storyBuild.js and must not be edited here: it holds the section
+     knitted from content/story/Protected.Rmd, whose front matter names howe.protectedPane as its paneComponent. Edit the
+     R Markdown and knit it, then run "npm run story", which replaces everything between <template> and </template>
+     and nothing else in this file. The markup is a template, which may bind members of howe.protectedPane with
+     @{...} - written in the R Markdown as raw HTML, e.g. `<span>@{count}</span>`{=html}, which pandoc leaves as it is -->
+<template>
+<div id="native-plant-diversity-within-protected-areas" class="section level2 mxcw-paneKey-Protected"><h2>Native plant diversity within protected areas</h2><div class="mxcw-sectionInner"><div class="mxcw-sectionColumn">
+
+
+
+<div class="howe-pa-summaries howe-pa-views">
+<nav class="howe-pa-tabs">
+<span class="howe-pa-tab" data-select="" role="button" tabindex="0">All protected areas</span>
+<span class="howe-pa-tab" data-select="Unprotected native plant diversity" role="button" tabindex="0">Unprotected native plant diversity</span>
+</nav>
+<section class="howe-pa-card-summary" data-key="" style="--pa-colour: #eefaff">
+<h3 class="howe-pa-summary-title">All protected and conserved areas</h3>
+<p class="howe-pa-summary-text">Based on our current knowledge, 73 percent of the 782 native vascular plant species known to the region have been reported within its protected and conserved areas, from provincial parks and ecological reserves to wildlife areas and lands held by conservancies. The other 213 have so far been recorded only outside them.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat">
+<b>42</b>
+<span>areas in 11 categories</span>
+</div>
+<div class="howe-pa-stat">
+<b>61,585</b>
+<span>hectares</span>
+</div>
+<div class="howe-pa-stat" data-select="Protected areas · native species" role="button" tabindex="0">
+<b>569</b>
+<span>native species · 73% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Protected areas · species of conservation concern" role="button" tabindex="0">
+<b>11</b>
+<span>of the 29 species of conservation concern</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Unprotected native plant diversity" hidden style="--pa-colour: #e07a5f">
+<h3 class="howe-pa-summary-title">Unprotected native plant diversity</h3>
+<p class="howe-pa-summary-subtitle">213 species · 994 records</p>
+<p class="howe-pa-summary-text">213 native species, 27 percent of the native plant diversity known to the region, have so far been reported only outside its protected and conserved areas. The map's grid shows where their records lie - the places where protection does not yet reach this part of the flora, or where it has yet to be looked for within the protected areas.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Unprotected native plant diversity" role="button" tabindex="0">
+<b>213</b>
+<span>native species · 27% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Unprotected native plant diversity · species of conservation concern" role="button" tabindex="0">
+<b>18</b>
+<span>species of conservation concern</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Ecological reserve" hidden style="--pa-colour: #decb90">
+<h3 class="howe-pa-summary-title">Ecological reserves</h3>
+<p class="howe-pa-summary-subtitle">2 areas · 444 hectares</p>
+<p class="howe-pa-summary-text">Ecological reserves hold 5 percent of the native plant diversity known to the region: 37 of its 782 native vascular plant species have been reported within them.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Ecological reserve · native species" role="button" tabindex="0">
+<b>37</b>
+<span>native species · 5% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Ecological reserve · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Ecological reserve · found in no other category" role="button" tabindex="0">
+<b>3</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>192</b>
+<span>records of native species</span>
+</div>
+</div>
+<div class="howe-pa-richest-holder">
+<span class="howe-pa-richest-title">Richest in native species</span>
+<ol class="howe-pa-richest">
+<li>
+<span class="howe-pa-link" data-select="Bowen Island Ecological Reserve" role="button" tabindex="0">Bowen Island Ecological Reserve</span>
+<b>37</b>
+</li>
+</ol>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Protected area" hidden style="--pa-colour: #5a96d2">
+<h3 class="howe-pa-summary-title">Protected area</h3>
+<p class="howe-pa-summary-subtitle">1 area · 2 hectares</p>
+<p class="howe-pa-summary-text">The protected area holds 2 percent of the native plant diversity known to the region: 12 of its 782 native vascular plant species have been reported within it.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Protected area · native species" role="button" tabindex="0">
+<b>12</b>
+<span>native species · 2% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Protected area · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Protected area · found in no other category" role="button" tabindex="0">
+<b>0</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>16</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Provincial park" hidden style="--pa-colour: #8cc084">
+<h3 class="howe-pa-summary-title">Provincial parks</h3>
+<p class="howe-pa-summary-subtitle">14 areas · 43,492 hectares</p>
+<p class="howe-pa-summary-text">Provincial parks hold 63 percent of the native plant diversity known to the region: 489 of its 782 native vascular plant species have been reported within them.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Provincial park · native species" role="button" tabindex="0">
+<b>489</b>
+<span>native species · 63% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Provincial park · species of conservation concern" role="button" tabindex="0">
+<b>10</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Provincial park · found in no other category" role="button" tabindex="0">
+<b>250</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>18,045</b>
+<span>records of native species</span>
+</div>
+</div>
+<div class="howe-pa-richest-holder">
+<span class="howe-pa-richest-title">Richest in native species</span>
+<ol class="howe-pa-richest">
+<li>
+<span class="howe-pa-link" data-select="Garibaldi Park" role="button" tabindex="0">Garibaldi Park</span>
+<b>330</b>
+</li>
+<li>
+<span class="howe-pa-link" data-select="Cypress Park" role="button" tabindex="0">Cypress Park</span>
+<b>251</b>
+</li>
+<li>
+<span class="howe-pa-link" data-select="Alice Lake Park" role="button" tabindex="0">Alice Lake Park</span>
+<b>132</b>
+</li>
+</ol>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Conservancy" hidden style="--pa-colour: #4fae98">
+<h3 class="howe-pa-summary-title">Conservancy</h3>
+<p class="howe-pa-summary-subtitle">1 area · 728 hectares</p>
+<p class="howe-pa-summary-text">The conservancy holds 3 percent of the native plant diversity known to the region: 21 of its 782 native vascular plant species have been reported within it.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Conservancy · native species" role="button" tabindex="0">
+<b>21</b>
+<span>native species · 3% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Conservancy · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Conservancy · found in no other category" role="button" tabindex="0">
+<b>0</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>31</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Migratory bird sanctuary" hidden style="--pa-colour: #9fd0e0">
+<h3 class="howe-pa-summary-title">Migratory bird sanctuary</h3>
+<p class="howe-pa-summary-subtitle">1 area · 1 hectares</p>
+<p class="howe-pa-summary-text">The migratory bird sanctuary holds 0 percent of the native plant diversity known to the region: 1 of its 782 native vascular plant species have been reported within it.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Migratory bird sanctuary · native species" role="button" tabindex="0">
+<b>1</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Migratory bird sanctuary · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Migratory bird sanctuary · found in no other category" role="button" tabindex="0">
+<b>1</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>1</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Wildlife management area" hidden style="--pa-colour: #7c86c9">
+<h3 class="howe-pa-summary-title">Wildlife management area</h3>
+<p class="howe-pa-summary-subtitle">1 area · 663 hectares</p>
+<p class="howe-pa-summary-text">The wildlife management area holds 20 percent of the native plant diversity known to the region: 159 of its 782 native vascular plant species have been reported within it.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Wildlife management area · native species" role="button" tabindex="0">
+<b>159</b>
+<span>native species · 20% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Wildlife management area · species of conservation concern" role="button" tabindex="0">
+<b>3</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Wildlife management area · found in no other category" role="button" tabindex="0">
+<b>47</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>1,751</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Wildlife habitat area" hidden style="--pa-colour: #b6c7e8">
+<h3 class="howe-pa-summary-title">Wildlife habitat areas</h3>
+<p class="howe-pa-summary-subtitle">1 area · 2,078 hectares</p>
+<p class="howe-pa-summary-text">Wildlife habitat areas holds 2 percent of the native plant diversity known to the region: 12 of its 782 native vascular plant species have been reported within it.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Wildlife habitat area · native species" role="button" tabindex="0">
+<b>12</b>
+<span>native species · 2% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Wildlife habitat area · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Wildlife habitat area · found in no other category" role="button" tabindex="0">
+<b>0</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>15</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Old growth management area" hidden style="--pa-colour: #c2a878">
+<h3 class="howe-pa-summary-title">Old growth management areas</h3>
+<p class="howe-pa-summary-subtitle">1 area · 8,119 hectares</p>
+<p class="howe-pa-summary-text">Old growth management areas holds 20 percent of the native plant diversity known to the region: 154 of its 782 native vascular plant species have been reported within it.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Old growth management area · native species" role="button" tabindex="0">
+<b>154</b>
+<span>native species · 20% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Old growth management area · species of conservation concern" role="button" tabindex="0">
+<b>2</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Old growth management area · found in no other category" role="button" tabindex="0">
+<b>8</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>614</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Wildland zone" hidden style="--pa-colour: #9fb28a">
+<h3 class="howe-pa-summary-title">Sea to sky wildland zones</h3>
+<p class="howe-pa-summary-subtitle">1 area · 5,031 hectares</p>
+<p class="howe-pa-summary-text">The Sea to Sky wildland zones holds 8 percent of the native plant diversity known to the region: 61 of its 782 native vascular plant species have been reported within it.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Wildland zone · native species" role="button" tabindex="0">
+<b>61</b>
+<span>native species · 8% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Wildland zone · species of conservation concern" role="button" tabindex="0">
+<b>3</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Wildland zone · found in no other category" role="button" tabindex="0">
+<b>0</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>132</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Other effective conservation measure" hidden style="--pa-colour: #c9c2b0">
+<h3 class="howe-pa-summary-title">Other effective conservation measures</h3>
+<p class="howe-pa-summary-subtitle">10 areas · 830 hectares</p>
+<p class="howe-pa-summary-text">Other effective conservation measures hold 2 percent of the native plant diversity known to the region: 12 of its 782 native vascular plant species have been reported within them.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Other effective conservation measure · native species" role="button" tabindex="0">
+<b>12</b>
+<span>native species · 2% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Other effective conservation measure · species of conservation concern" role="button" tabindex="0">
+<b>1</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Other effective conservation measure · found in no other category" role="button" tabindex="0">
+<b>0</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>15</b>
+<span>records of native species</span>
+</div>
+</div>
+<div class="howe-pa-richest-holder">
+<span class="howe-pa-richest-title">Richest in native species</span>
+<ol class="howe-pa-richest">
+<li>
+<span class="howe-pa-link" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Dorman Point)" role="button" tabindex="0">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Dorman Point)</span>
+<b>6</b>
+</li>
+<li>
+<span class="howe-pa-link" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Queen Charlotte Channel)" role="button" tabindex="0">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Queen Charlotte Channel)</span>
+<b>4</b>
+</li>
+<li>
+<span class="howe-pa-link" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Anvil Island)" role="button" tabindex="0">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Anvil Island)</span>
+<b>1</b>
+</li>
+</ol>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Private conservation land" hidden style="--pa-colour: #a593d8">
+<h3 class="howe-pa-summary-title">Private conservation lands</h3>
+<p class="howe-pa-summary-subtitle">9 areas · 197 hectares</p>
+<p class="howe-pa-summary-text">Private conservation lands hold 11 percent of the native plant diversity known to the region: 87 of its 782 native vascular plant species have been reported within them.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Private conservation land · native species" role="button" tabindex="0">
+<b>87</b>
+<span>native species · 11% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Private conservation land · species of conservation concern" role="button" tabindex="0">
+<b>1</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat" data-select="Private conservation land · found in no other category" role="button" tabindex="0">
+<b>13</b>
+<span>species reported in no other category</span>
+</div>
+<div class="howe-pa-stat">
+<b>313</b>
+<span>records of native species</span>
+</div>
+</div>
+<div class="howe-pa-richest-holder">
+<span class="howe-pa-richest-title">Richest in native species</span>
+<ol class="howe-pa-richest">
+<li>
+<span class="howe-pa-link" data-select="Cape Roger Curtis Park" role="button" tabindex="0">Cape Roger Curtis Park</span>
+<b>45</b>
+</li>
+<li>
+<span class="howe-pa-link" data-select="Fairy Fen Nature Reserve" role="button" tabindex="0">Fairy Fen Nature Reserve</span>
+<b>18</b>
+</li>
+<li>
+<span class="howe-pa-link" data-select="Sandy Beach Nature Reserve" role="button" tabindex="0">Sandy Beach Nature Reserve</span>
+<b>17</b>
+</li>
+</ol>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Alice Lake Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Alice Lake Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 412 hectares</p>
+<p class="howe-pa-summary-text">132 native species, 17 percent of the native plant diversity known to the region, have been reported within Alice Lake Park, the 3rd richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Alice Lake Park · native species" role="button" tabindex="0">
+<b>132</b>
+<span>native species · 17% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Alice Lake Park · species of conservation concern" role="button" tabindex="0">
+<b>1</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>1,660</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Apodaca Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Apodaca Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 12 hectares</p>
+<p class="howe-pa-summary-text">58 native species, 7 percent of the native plant diversity known to the region, have been reported within Apodaca Park, the 6th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Apodaca Park · native species" role="button" tabindex="0">
+<b>58</b>
+<span>native species · 7% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Apodaca Park · species of conservation concern" role="button" tabindex="0">
+<b>1</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>259</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Baynes Island Ecological Reserve" hidden style="--pa-colour: #decb90">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Ecological reserve" role="button" tabindex="0">↑ Ecological reserves</span>
+</nav>
+<h3 class="howe-pa-summary-title">Baynes Island Ecological Reserve</h3>
+<p class="howe-pa-summary-subtitle">Ecological reserve · 45 hectares</p>
+<p class="howe-pa-summary-text">No native species have yet been reported within Baynes Island Ecological Reserve.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Baynes Island Ecological Reserve · native species" role="button" tabindex="0">
+<b>0</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Baynes Island Ecological Reserve · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>0</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Bowen Island Ecological Reserve" hidden style="--pa-colour: #decb90">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Ecological reserve" role="button" tabindex="0">↑ Ecological reserves</span>
+</nav>
+<h3 class="howe-pa-summary-title">Bowen Island Ecological Reserve</h3>
+<p class="howe-pa-summary-subtitle">Ecological reserve · 400 hectares</p>
+<p class="howe-pa-summary-text">37 native species, 5 percent of the native plant diversity known to the region, have been reported within Bowen Island Ecological Reserve, the richest of its 2 ecological reserves.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Bowen Island Ecological Reserve · native species" role="button" tabindex="0">
+<b>37</b>
+<span>native species · 5% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Bowen Island Ecological Reserve · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>192</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Brackendale Eagles Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Brackendale Eagles Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 765 hectares</p>
+<p class="howe-pa-summary-text">9 native species, 1 percent of the native plant diversity known to the region, have been reported within Brackendale Eagles Park, the 14th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Brackendale Eagles Park · native species" role="button" tabindex="0">
+<b>9</b>
+<span>native species · 1% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Brackendale Eagles Park · species of conservation concern" role="button" tabindex="0">
+<b>1</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>13</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Brigade Bluffs Nature Reserve" hidden style="--pa-colour: #a593d8">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Private conservation land" role="button" tabindex="0">↑ Private conservation lands</span>
+</nav>
+<h3 class="howe-pa-summary-title">Brigade Bluffs Nature Reserve</h3>
+<p class="howe-pa-summary-subtitle">Private conservation land · Islands Trust Conservancy · 5 hectares</p>
+<p class="howe-pa-summary-text">No native species have yet been reported within Brigade Bluffs Nature Reserve.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Brigade Bluffs Nature Reserve · native species" role="button" tabindex="0">
+<b>0</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Brigade Bluffs Nature Reserve · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>0</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Cape Roger Curtis Park" hidden style="--pa-colour: #a593d8">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Private conservation land" role="button" tabindex="0">↑ Private conservation lands</span>
+</nav>
+<h3 class="howe-pa-summary-title">Cape Roger Curtis Park</h3>
+<p class="howe-pa-summary-subtitle">Private conservation land · Bowen Island Conservancy · 13 hectares</p>
+<p class="howe-pa-summary-text">45 native species, 6 percent of the native plant diversity known to the region, have been reported within Cape Roger Curtis Park, the richest of its 9 private conservation lands.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Cape Roger Curtis Park · native species" role="button" tabindex="0">
+<b>45</b>
+<span>native species · 6% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Cape Roger Curtis Park · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>118</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Christie Islet Migratory Bird Sanctuary" hidden style="--pa-colour: #9fd0e0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Migratory bird sanctuary" role="button" tabindex="0">↑ Migratory bird sanctuary</span>
+</nav>
+<h3 class="howe-pa-summary-title">Christie Islet Migratory Bird Sanctuary</h3>
+<p class="howe-pa-summary-subtitle">Migratory bird sanctuary · 1 hectares</p>
+<p class="howe-pa-summary-text">1 native species, 0 percent of the native plant diversity known to the region, have been reported within Christie Islet Migratory Bird Sanctuary.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Christie Islet Migratory Bird Sanctuary · native species" role="button" tabindex="0">
+<b>1</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Christie Islet Migratory Bird Sanctuary · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>1</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Cypress Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Cypress Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 2,605 hectares</p>
+<p class="howe-pa-summary-text">251 native species, 32 percent of the native plant diversity known to the region, have been reported within Cypress Park, the 2nd richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Cypress Park · native species" role="button" tabindex="0">
+<b>251</b>
+<span>native species · 32% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Cypress Park · species of conservation concern" role="button" tabindex="0">
+<b>4</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>8,302</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="David Otter Nature Reserve" hidden style="--pa-colour: #a593d8">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Private conservation land" role="button" tabindex="0">↑ Private conservation lands</span>
+</nav>
+<h3 class="howe-pa-summary-title">David Otter Nature Reserve</h3>
+<p class="howe-pa-summary-subtitle">Private conservation land · Islands Trust Conservancy · 2 hectares</p>
+<p class="howe-pa-summary-text">No native species have yet been reported within David Otter Nature Reserve.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="David Otter Nature Reserve · native species" role="button" tabindex="0">
+<b>0</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="David Otter Nature Reserve · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>0</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Este-Tiwilh/Sigurd Creek Conservancy" hidden style="--pa-colour: #4fae98">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Conservancy" role="button" tabindex="0">↑ Conservancy</span>
+</nav>
+<h3 class="howe-pa-summary-title">Este-Tiwilh/Sigurd Creek Conservancy</h3>
+<p class="howe-pa-summary-subtitle">Conservancy · 728 hectares</p>
+<p class="howe-pa-summary-text">21 native species, 3 percent of the native plant diversity known to the region, have been reported within Este-Tiwilh/Sigurd Creek Conservancy.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Este-Tiwilh/Sigurd Creek Conservancy · native species" role="button" tabindex="0">
+<b>21</b>
+<span>native species · 3% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Este-Tiwilh/Sigurd Creek Conservancy · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>31</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Fairy Fen Nature Reserve" hidden style="--pa-colour: #a593d8">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Private conservation land" role="button" tabindex="0">↑ Private conservation lands</span>
+</nav>
+<h3 class="howe-pa-summary-title">Fairy Fen Nature Reserve</h3>
+<p class="howe-pa-summary-subtitle">Private conservation land · Islands Trust Conservancy · 18 hectares</p>
+<p class="howe-pa-summary-text">18 native species, 2 percent of the native plant diversity known to the region, have been reported within Fairy Fen Nature Reserve, the 2nd richest of its 9 private conservation lands.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Fairy Fen Nature Reserve · native species" role="button" tabindex="0">
+<b>18</b>
+<span>native species · 2% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Fairy Fen Nature Reserve · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>33</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Garibaldi Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Garibaldi Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 23,018 hectares</p>
+<p class="howe-pa-summary-text">330 native species, 42 percent of the native plant diversity known to the region, have been reported within Garibaldi Park, the richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Garibaldi Park · native species" role="button" tabindex="0">
+<b>330</b>
+<span>native species · 42% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Garibaldi Park · species of conservation concern" role="button" tabindex="0">
+<b>5</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>4,415</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Halkett Bay Marine Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Halkett Bay Marine Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 448 hectares</p>
+<p class="howe-pa-summary-text">39 native species, 5 percent of the native plant diversity known to the region, have been reported within Halkett Bay Marine Park, the 10th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Halkett Bay Marine Park · native species" role="button" tabindex="0">
+<b>39</b>
+<span>native species · 5% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Halkett Bay Marine Park · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>225</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Long Bay Wetland Nature Reserve" hidden style="--pa-colour: #a593d8">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Private conservation land" role="button" tabindex="0">↑ Private conservation lands</span>
+</nav>
+<h3 class="howe-pa-summary-title">Long Bay Wetland Nature Reserve</h3>
+<p class="howe-pa-summary-subtitle">Private conservation land · Islands Trust Conservancy · 37 hectares</p>
+<p class="howe-pa-summary-text">6 native species, 1 percent of the native plant diversity known to the region, have been reported within Long Bay Wetland Nature Reserve, the 7th richest of its 9 private conservation lands.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Long Bay Wetland Nature Reserve · native species" role="button" tabindex="0">
+<b>6</b>
+<span>native species · 1% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Long Bay Wetland Nature Reserve · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>9</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Mt. Artaban" hidden style="--pa-colour: #a593d8">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Private conservation land" role="button" tabindex="0">↑ Private conservation lands</span>
+</nav>
+<h3 class="howe-pa-summary-title">Mt. Artaban</h3>
+<p class="howe-pa-summary-subtitle">Private conservation land · Islands Trust Conservancy · 102 hectares</p>
+<p class="howe-pa-summary-text">10 native species, 1 percent of the native plant diversity known to the region, have been reported within Mt. Artaban, the 6th richest of its 9 private conservation lands.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Mt. Artaban · native species" role="button" tabindex="0">
+<b>10</b>
+<span>native species · 1% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Mt. Artaban · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>19</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Murrin Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Murrin Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 32 hectares</p>
+<p class="howe-pa-summary-text">50 native species, 6 percent of the native plant diversity known to the region, have been reported within Murrin Park, the 9th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Murrin Park · native species" role="button" tabindex="0">
+<b>50</b>
+<span>native species · 6% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Murrin Park · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>328</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Old Growth Management Areas (Mapped Legal)" hidden style="--pa-colour: #c2a878">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Old growth management area" role="button" tabindex="0">↑ Old growth management areas</span>
+</nav>
+<h3 class="howe-pa-summary-title">Old Growth Management Areas (Mapped Legal)</h3>
+<p class="howe-pa-summary-subtitle">Old growth management area · 8,119 hectares</p>
+<p class="howe-pa-summary-text">154 native species, 20 percent of the native plant diversity known to the region, have been reported within Old Growth Management Areas (Mapped Legal).</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Old Growth Management Areas (Mapped Legal) · native species" role="button" tabindex="0">
+<b>154</b>
+<span>native species · 20% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Old Growth Management Areas (Mapped Legal) · species of conservation concern" role="button" tabindex="0">
+<b>2</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>614</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Pinecone Burke Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Pinecone Burke Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 2,612 hectares</p>
+<p class="howe-pa-summary-text">25 native species, 3 percent of the native plant diversity known to the region, have been reported within Pinecone Burke Park, the 12th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Pinecone Burke Park · native species" role="button" tabindex="0">
+<b>25</b>
+<span>native species · 3% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Pinecone Burke Park · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>44</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Plumper Cove Marine Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Plumper Cove Marine Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 66 hectares</p>
+<p class="howe-pa-summary-text">56 native species, 7 percent of the native plant diversity known to the region, have been reported within Plumper Cove Marine Park, the 7th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Plumper Cove Marine Park · native species" role="button" tabindex="0">
+<b>56</b>
+<span>native species · 7% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Plumper Cove Marine Park · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>843</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Porteau Cove Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Porteau Cove Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 58 hectares</p>
+<p class="howe-pa-summary-text">69 native species, 9 percent of the native plant diversity known to the region, have been reported within Porteau Cove Park, the 5th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Porteau Cove Park · native species" role="button" tabindex="0">
+<b>69</b>
+<span>native species · 9% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Porteau Cove Park · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>436</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Sandy Beach Nature Reserve" hidden style="--pa-colour: #a593d8">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Private conservation land" role="button" tabindex="0">↑ Private conservation lands</span>
+</nav>
+<h3 class="howe-pa-summary-title">Sandy Beach Nature Reserve</h3>
+<p class="howe-pa-summary-subtitle">Private conservation land · Islands Trust Conservancy · 4 hectares</p>
+<p class="howe-pa-summary-text">17 native species, 2 percent of the native plant diversity known to the region, have been reported within Sandy Beach Nature Reserve, the 3rd richest of its 9 private conservation lands.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Sandy Beach Nature Reserve · native species" role="button" tabindex="0">
+<b>17</b>
+<span>native species · 2% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Sandy Beach Nature Reserve · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>70</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Sea To Sky Wildland Zones" hidden style="--pa-colour: #9fb28a">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Wildland zone" role="button" tabindex="0">↑ Sea to sky wildland zones</span>
+</nav>
+<h3 class="howe-pa-summary-title">Sea To Sky Wildland Zones</h3>
+<p class="howe-pa-summary-subtitle">Wildland zone · 5,031 hectares</p>
+<p class="howe-pa-summary-text">61 native species, 8 percent of the native plant diversity known to the region, have been reported within Sea To Sky Wildland Zones.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Sea To Sky Wildland Zones · native species" role="button" tabindex="0">
+<b>61</b>
+<span>native species · 8% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Sea To Sky Wildland Zones · species of conservation concern" role="button" tabindex="0">
+<b>3</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>132</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Shannon Falls Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Shannon Falls Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 91 hectares</p>
+<p class="howe-pa-summary-text">54 native species, 7 percent of the native plant diversity known to the region, have been reported within Shannon Falls Park, the 8th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Shannon Falls Park · native species" role="button" tabindex="0">
+<b>54</b>
+<span>native species · 7% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Shannon Falls Park · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>348</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Singing Woods Nature Reserve" hidden style="--pa-colour: #a593d8">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Private conservation land" role="button" tabindex="0">↑ Private conservation lands</span>
+</nav>
+<h3 class="howe-pa-summary-title">Singing Woods Nature Reserve</h3>
+<p class="howe-pa-summary-subtitle">Private conservation land · Islands Trust Conservancy · 9 hectares</p>
+<p class="howe-pa-summary-text">17 native species, 2 percent of the native plant diversity known to the region, have been reported within Singing Woods Nature Reserve, the 3rd richest of its 9 private conservation lands.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Singing Woods Nature Reserve · native species" role="button" tabindex="0">
+<b>17</b>
+<span>native species · 2% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Singing Woods Nature Reserve · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>35</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Skwelwil'Em Squamish Estuary" hidden style="--pa-colour: #7c86c9">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Wildlife management area" role="button" tabindex="0">↑ Wildlife management area</span>
+</nav>
+<h3 class="howe-pa-summary-title">Skwelwil'Em Squamish Estuary</h3>
+<p class="howe-pa-summary-subtitle">Wildlife management area · 663 hectares</p>
+<p class="howe-pa-summary-text">159 native species, 20 percent of the native plant diversity known to the region, have been reported within Skwelwil'Em Squamish Estuary.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Skwelwil'Em Squamish Estuary · native species" role="button" tabindex="0">
+<b>159</b>
+<span>native species · 20% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Skwelwil'Em Squamish Estuary · species of conservation concern" role="button" tabindex="0">
+<b>3</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>1,751</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Squamish Estuary" hidden style="--pa-colour: #a593d8">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Private conservation land" role="button" tabindex="0">↑ Private conservation lands</span>
+</nav>
+<h3 class="howe-pa-summary-title">Squamish Estuary</h3>
+<p class="howe-pa-summary-subtitle">Private conservation land · The Nature Trust of British Columbia · 6 hectares</p>
+<p class="howe-pa-summary-text">12 native species, 2 percent of the native plant diversity known to the region, have been reported within Squamish Estuary, the 5th richest of its 9 private conservation lands.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Squamish Estuary · native species" role="button" tabindex="0">
+<b>12</b>
+<span>native species · 2% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Squamish Estuary · species of conservation concern" role="button" tabindex="0">
+<b>1</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>29</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Stawamus Chief Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Stawamus Chief Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 530 hectares</p>
+<p class="howe-pa-summary-text">103 native species, 13 percent of the native plant diversity known to the region, have been reported within Stawamus Chief Park, the 4th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Stawamus Chief Park · native species" role="button" tabindex="0">
+<b>103</b>
+<span>native species · 13% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Stawamus Chief Park · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>1,101</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Stawamus Chief Protected Area" hidden style="--pa-colour: #5a96d2">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Protected area" role="button" tabindex="0">↑ Protected area</span>
+</nav>
+<h3 class="howe-pa-summary-title">Stawamus Chief Protected Area</h3>
+<p class="howe-pa-summary-subtitle">Protected area · 2 hectares</p>
+<p class="howe-pa-summary-text">12 native species, 2 percent of the native plant diversity known to the region, have been reported within Stawamus Chief Protected Area.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Stawamus Chief Protected Area · native species" role="button" tabindex="0">
+<b>12</b>
+<span>native species · 2% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Stawamus Chief Protected Area · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>16</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Anvil Island)" hidden style="--pa-colour: #c9c2b0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Other effective conservation measure" role="button" tabindex="0">↑ Other effective conservation measures</span>
+</nav>
+<h3 class="howe-pa-summary-title">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Anvil Island)</h3>
+<p class="howe-pa-summary-subtitle">Other effective conservation measure · 48 hectares</p>
+<p class="howe-pa-summary-text">1 native species, 0 percent of the native plant diversity known to the region, have been reported within Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Anvil Island), the 3rd richest of its 10 other effective conservation measures.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Anvil Island) · native species" role="button" tabindex="0">
+<b>1</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Anvil Island) · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>1</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Bowyer Island)" hidden style="--pa-colour: #c9c2b0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Other effective conservation measure" role="button" tabindex="0">↑ Other effective conservation measures</span>
+</nav>
+<h3 class="howe-pa-summary-title">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Bowyer Island)</h3>
+<p class="howe-pa-summary-subtitle">Other effective conservation measure · 58 hectares</p>
+<p class="howe-pa-summary-text">No native species have yet been reported within Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Bowyer Island).</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Bowyer Island) · native species" role="button" tabindex="0">
+<b>0</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Bowyer Island) · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>0</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Brunswick Point)" hidden style="--pa-colour: #c9c2b0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Other effective conservation measure" role="button" tabindex="0">↑ Other effective conservation measures</span>
+</nav>
+<h3 class="howe-pa-summary-title">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Brunswick Point)</h3>
+<p class="howe-pa-summary-subtitle">Other effective conservation measure · 29 hectares</p>
+<p class="howe-pa-summary-text">No native species have yet been reported within Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Brunswick Point).</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Brunswick Point) · native species" role="button" tabindex="0">
+<b>0</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Brunswick Point) · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>0</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Defence Islands)" hidden style="--pa-colour: #c9c2b0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Other effective conservation measure" role="button" tabindex="0">↑ Other effective conservation measures</span>
+</nav>
+<h3 class="howe-pa-summary-title">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Defence Islands)</h3>
+<p class="howe-pa-summary-subtitle">Other effective conservation measure · 68 hectares</p>
+<p class="howe-pa-summary-text">No native species have yet been reported within Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Defence Islands).</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Defence Islands) · native species" role="button" tabindex="0">
+<b>0</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Defence Islands) · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>0</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Dorman Point)" hidden style="--pa-colour: #c9c2b0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Other effective conservation measure" role="button" tabindex="0">↑ Other effective conservation measures</span>
+</nav>
+<h3 class="howe-pa-summary-title">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Dorman Point)</h3>
+<p class="howe-pa-summary-subtitle">Other effective conservation measure · 18 hectares</p>
+<p class="howe-pa-summary-text">6 native species, 1 percent of the native plant diversity known to the region, have been reported within Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Dorman Point), the richest of its 10 other effective conservation measures.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Dorman Point) · native species" role="button" tabindex="0">
+<b>6</b>
+<span>native species · 1% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Dorman Point) · species of conservation concern" role="button" tabindex="0">
+<b>1</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>8</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (East Defence Islands)" hidden style="--pa-colour: #c9c2b0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Other effective conservation measure" role="button" tabindex="0">↑ Other effective conservation measures</span>
+</nav>
+<h3 class="howe-pa-summary-title">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (East Defence Islands)</h3>
+<p class="howe-pa-summary-subtitle">Other effective conservation measure · 27 hectares</p>
+<p class="howe-pa-summary-text">No native species have yet been reported within Strait of Georgia and Howe Sound Glass Sponge Reef Closure (East Defence Islands).</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (East Defence Islands) · native species" role="button" tabindex="0">
+<b>0</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (East Defence Islands) · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>0</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Halkett Point)" hidden style="--pa-colour: #c9c2b0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Other effective conservation measure" role="button" tabindex="0">↑ Other effective conservation measures</span>
+</nav>
+<h3 class="howe-pa-summary-title">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Halkett Point)</h3>
+<p class="howe-pa-summary-subtitle">Other effective conservation measure · 1 hectares</p>
+<p class="howe-pa-summary-text">No native species have yet been reported within Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Halkett Point).</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Halkett Point) · native species" role="button" tabindex="0">
+<b>0</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Halkett Point) · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>0</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lions Bay and Kelvin Grove)" hidden style="--pa-colour: #c9c2b0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Other effective conservation measure" role="button" tabindex="0">↑ Other effective conservation measures</span>
+</nav>
+<h3 class="howe-pa-summary-title">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lions Bay and Kelvin Grove)</h3>
+<p class="howe-pa-summary-subtitle">Other effective conservation measure · 115 hectares</p>
+<p class="howe-pa-summary-text">1 native species, 0 percent of the native plant diversity known to the region, have been reported within Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lions Bay and Kelvin Grove), the 3rd richest of its 10 other effective conservation measures.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lions Bay and Kelvin Grove) · native species" role="button" tabindex="0">
+<b>1</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lions Bay and Kelvin Grove) · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>2</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lost Reef)" hidden style="--pa-colour: #c9c2b0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Other effective conservation measure" role="button" tabindex="0">↑ Other effective conservation measures</span>
+</nav>
+<h3 class="howe-pa-summary-title">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lost Reef)</h3>
+<p class="howe-pa-summary-subtitle">Other effective conservation measure · 32 hectares</p>
+<p class="howe-pa-summary-text">No native species have yet been reported within Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lost Reef).</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lost Reef) · native species" role="button" tabindex="0">
+<b>0</b>
+<span>native species · 0% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Lost Reef) · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>0</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Queen Charlotte Channel)" hidden style="--pa-colour: #c9c2b0">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Other effective conservation measure" role="button" tabindex="0">↑ Other effective conservation measures</span>
+</nav>
+<h3 class="howe-pa-summary-title">Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Queen Charlotte Channel)</h3>
+<p class="howe-pa-summary-subtitle">Other effective conservation measure · 435 hectares</p>
+<p class="howe-pa-summary-text">4 native species, 1 percent of the native plant diversity known to the region, have been reported within Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Queen Charlotte Channel), the 2nd richest of its 10 other effective conservation measures.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Queen Charlotte Channel) · native species" role="button" tabindex="0">
+<b>4</b>
+<span>native species · 1% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Strait of Georgia and Howe Sound Glass Sponge Reef Closure (Queen Charlotte Channel) · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>4</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Tantalus Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Tantalus Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 10,809 hectares</p>
+<p class="howe-pa-summary-text">36 native species, 5 percent of the native plant diversity known to the region, have been reported within Tantalus Park, the 11th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Tantalus Park · native species" role="button" tabindex="0">
+<b>36</b>
+<span>native species · 5% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Tantalus Park · species of conservation concern" role="button" tabindex="0">
+<b>1</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>61</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Tetrahedron Park" hidden style="--pa-colour: #8cc084">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Provincial park" role="button" tabindex="0">↑ Provincial parks</span>
+</nav>
+<h3 class="howe-pa-summary-title">Tetrahedron Park</h3>
+<p class="howe-pa-summary-subtitle">Provincial park · 2,035 hectares</p>
+<p class="howe-pa-summary-text">10 native species, 1 percent of the native plant diversity known to the region, have been reported within Tetrahedron Park, the 13th richest of its 14 provincial parks.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Tetrahedron Park · native species" role="button" tabindex="0">
+<b>10</b>
+<span>native species · 1% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Tetrahedron Park · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>10</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+<section class="howe-pa-card-summary" data-key="Wildlife Habitat Areas" hidden style="--pa-colour: #b6c7e8">
+<nav class="howe-pa-crumbs">
+<span class="howe-pa-link" data-select="Wildlife habitat area" role="button" tabindex="0">↑ Wildlife habitat areas</span>
+</nav>
+<h3 class="howe-pa-summary-title">Wildlife Habitat Areas</h3>
+<p class="howe-pa-summary-subtitle">Wildlife habitat area · 2,078 hectares</p>
+<p class="howe-pa-summary-text">12 native species, 2 percent of the native plant diversity known to the region, have been reported within Wildlife Habitat Areas.</p>
+<div class="howe-pa-stats">
+<div class="howe-pa-stat" data-select="Wildlife Habitat Areas · native species" role="button" tabindex="0">
+<b>12</b>
+<span>native species · 2% of the native flora</span>
+</div>
+<div class="howe-pa-stat" data-select="Wildlife Habitat Areas · species of conservation concern" role="button" tabindex="0">
+<b>0</b>
+<span>species of conservation concern</span>
+</div>
+<div class="howe-pa-stat">
+<b>15</b>
+<span>records of native species</span>
+</div>
+</div>
+</section>
+</div>
+
+<p>This preliminary evaluation is limited by biases in sampling effort
+and other gaps in the data, but it is a starting point for a more
+thorough assessment of progress toward conserving the region’s plant
+diversity. Help improve it by reporting your observations to the <a href="https://www.inaturalist.org/projects/atl-ka7tsem-howe-sound-biosphere-region">Átl’ḵa7tsem/Howe
+Sound Biosphere Region iNaturalist project</a>.</p>
+<p>The map shows protected and conserved areas by category. Click an
+area on the map, or in the chart below it, to show only the plants
+recorded there and its summary above, or a category in the map’s legend
+or the chart to show those recorded in all its areas. Choose
+<em>Unprotected native plant diversity</em> in the chart to show, as a
+grid on the map, where the native plants not yet reported in any
+protected area have been recorded. Protected areas are from the <a href="https://www.canada.ca/en/environment-climate-change/services/national-wildlife-areas/protected-conserved-areas-database.html">Canadian
+Protected and Conserved Areas Database</a> (Environment and Climate
+Change Canada).</p>
+</div></div></div>
+</template>

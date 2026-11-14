@@ -1,4 +1,4 @@
-# Átl’ka7tsem/Howe Sound Biosphere Vegetation Analysis
+# Flora of the Átl’ḵa7tsem/Howe Sound Biosphere
 
 This project hosts a structure for building out and publishing a map-based storymapping
 interface for the [Átl’ka7tsem/Howe Sound Biosphere Reserve](https://en.unesco.org/biosphere/eu-na/atlka7tsem_howe-sound)

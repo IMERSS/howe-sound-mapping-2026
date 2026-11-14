@@ -1,6 +1,6 @@
 # Configuration
 baseURL: "/"
-title: Átl’ḵa7tsem/Howe Sound Biosphere Vegetation Report
+title: Flora of the Átl’ḵa7tsem/Howe Sound Biosphere
 
 relativeUrls: true
 publishDir: docs
@@ -92,7 +92,7 @@ params:
     title: Salish Sea Biodiversity Atlas
     url: "https://salishseabiodiversity.org/"
 
-  description: Átl’ḵa7tsem/Howe Sound Biosphere Vegetation Analysis
+  description: Flora of the Átl’ḵa7tsem/Howe Sound Biosphere
   # The site's address on GitHub Pages, from which a shared page gives its own address in full as its og:url - see
   # layouts/partials/opengraph.html. Facebook follows og:url, and a bare "/story/" led it to the root of github.io.
   # baseURL itself stays "/", since relativeUrls makes every link within the site relative to it

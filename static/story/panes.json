@@ -93,12 +93,12 @@
     "layers": []
   },
   {
-    "title": "Vascular plant diversity within Howe Sound's protected areas",
+    "title": "Native plant diversity within protected areas",
     "shortTitle": "Protected Areas",
     "weight": 5,
     "regionField": "Protected",
-    "visibleObsTable": false,
     "visibleGrid": false,
+    "paneComponent": "howe.protectedPane",
     "view": {
       "type": "view",
       "lon": -123.2194,
@@ -106,24 +106,22 @@
       "zoom": 8.5
     },
     "selectableRegions": [
-      "A - Park",
-      "Other Effective Area-Based Conservation Measure",
-      "Privately Owned Conservation Area",
-      "Wildlife Habitat Areas",
-      "Protected Area",
-      "Sea To Sky Wildland Zones",
-      "Migratory Bird Sanctuary",
-      "Ecological Reserve",
+      "Ecological reserve",
+      "Protected area",
+      "Provincial park",
       "Conservancy",
-      "Old Growth Management Areas (Mapped Legal)",
-      "Wildlife Management Area"
+      "Migratory bird sanctuary",
+      "Wildlife management area",
+      "Wildlife habitat area",
+      "Old growth management area",
+      "Wildland zone",
+      "Other effective conservation measure",
+      "Private conservation land"
     ],
     "paneKey": "Protected",
-    "file": "Protected.html",
+    "file": null,
     "dataFile": "Protected-data.html",
-    "widgetIds": [
-      "protectedAreas"
-    ],
+    "widgetIds": [],
     "layers": [
       "reknitr.obsMapPaneHandler"
     ]

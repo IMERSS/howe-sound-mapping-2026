@@ -1,35 +1,39 @@
 ---
-title: Vascular plant diversity within Howe Sound's protected areas
+title: Native plant diversity within protected areas
 shortTitle: Protected Areas
 weight: 5
 knit: (function(input, ...) { source(here::here("R/knit_render.R"), local = TRUE)$value(input, ...) })
 paneHandlerLayers: ["reknitr.obsMapPaneHandler"]
 regionField: Protected
-visibleObsTable: false
 visibleGrid: false
+# The component rendering this pane's section, into whose template npm run story writes it - see AGENTS.md
+paneComponent: howe.protectedPane
 ---
 
-## Vascular plant diversity within Howe Sound's protected areas
+## Native plant diversity within protected areas
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, out.width="1024px"}
-#width instructions from https://stackoverflow.com/a/41371132
 source("scripts/Protected_map_mapbox.R")
 
-native.plants <- read.csv("outputs/AHSBR_native_vascular_plant_species.csv")
-protected.plants <- read.csv("outputs/AHSBR_protected_native_vascular_plant_species.csv")
-
 protectedAreaMap
-protected.area.plot 
 ```
 
-<div class="data-pane">
-*Map 4. Protected Areas*
-</div>
+```{r, echo=FALSE}
+# A summary of the selection on the map - all the protected areas, a category or an area - see howe-protectedPane.vue
+protected.area.summaries
+# The chart of species by category, or by area within the selected category, shown beneath the map - see
+# mxcw-data-pane-html in src/js/storyBuild.js
+protected.area.bars
+```
 
-Based on our current knowledge, `r round(nrow(protected.plants)/nrow(native.plants)*100)` percent
-of the native plant diversity known to Átl’ḵa7tsem/Howe Sound has been reported within protected areas.
-While this preliminary evaluation is limited due to biases in sampling effort and other deficiencies in the data,
-it represents a starting point for a more thorough assessment of progress being made toward goals of conserving our
-regional habitat diversity. Please help improve our understanding of the distribution of vascular plants and other
-biodiversity the region by reporting your observations to
-the [Atl'ka7tsem Howe Sound Biosphere Region iNaturalist project.](https://www.inaturalist.org/projects/atl-ka7tsem-howe-sound-biosphere-region)
+This preliminary evaluation is limited by biases in sampling effort and other gaps in the data, but it is a starting
+point for a more thorough assessment of progress toward conserving the region's plant diversity. Help improve it by
+reporting your observations to the
+[Átl’ḵa7tsem/Howe Sound Biosphere Region iNaturalist project](https://www.inaturalist.org/projects/atl-ka7tsem-howe-sound-biosphere-region).
+
+The map shows protected and conserved areas by category. Click an area on the map, or in the chart below it, to show
+only the plants recorded there and its summary above, or a category in the map's legend or the chart to show those
+recorded in all its areas. Choose *Unprotected native plant diversity* in the chart to show, as a grid on the map,
+where the native plants not yet reported in any protected area have been recorded.
+Protected areas are from the [Canadian Protected and Conserved Areas Database](https://www.canada.ca/en/environment-climate-change/services/national-wildlife-areas/protected-conserved-areas-database.html)
+(Environment and Climate Change Canada).

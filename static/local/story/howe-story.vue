@@ -1,4 +1,6 @@
 <fluid-import src="../../bioreportr/sfc/bioreportr-storyPage.vue"></fluid-import>
+<fluid-import src="howe-atlasPanel.vue"></fluid-import>
+<fluid-import src="howe-protectedPane.vue"></fluid-import>
 <!-- The iNaturalist panels of the Top Contributions pane -->
 <script src="%@imerss/inat-components/dist/standalone.min.js" fluid-client data-fl-scope="global"></script>
 <script>
@@ -7,7 +9,7 @@
 // The story page of the Átl’ḵa7tsem/Howe Sound vascular plant report. Its paths are relative to the story page,
 // served at /story/, whose panes are written by src/js/storyBuild.js into static/story
 fluid.def("howe.story", {
-    $layers: "bioreportr.storyPage",
+    $layers: ["bioreportr.storyPage", "howe.atlasPanel"],
     obsFile: "../local/data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv",
     obsPlaceholderFile: "../local/data/tabular/placeholder/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv",
     taxaFile: "../local/data/tabular/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv",
@@ -15,7 +17,32 @@ fluid.def("howe.story", {
     regionIndirectionFile: "../local/data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-regionIndirection.csv",
     regionIndirectionPlaceholderFile: "../local/data/tabular/placeholder/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-regionIndirection.csv",
     gridResolution: 1000,
-    regionFilterFieldNames: ["BEC", "Protected"],
+    // The regions which may filter the records - a category of protected area is matched through rows of the region
+    // index giving each area the label of its category, see GroupField in scripts/intersectShapes.R
+    regionFilterFieldNames: ["BEC", "ProtectedArea"],
+    // The Protected Areas pane may also select the native species reported in no protected area, and some of the
+    // species of a region - see howe.protectedAreas.regionFilter
+    regionFilter: {
+        $component: {
+            doFilter: `$method:howe.protectedAreas.regionFilter({0}:obsRows, {1}:filterState, {storyPage}.regionIndirection.rows,
+                {storyPage}.regionFilterFieldNames, {storyPage}.protectedAreas.taxonSets, {storyPage}.activePaneKey)`
+        }
+    },
+    // The panel of the plant chosen in the checklist - the atlas's, see howe-atlasPanel.vue, or on the Protected Areas
+    // pane its smaller one giving the plant's records within the selected region, see howe-protectedPane.vue
+    taxonPanel: {
+        $component: {
+            markup: "$compute:howe.protectedAreas.choosePanel({storyPage}.activePaneKey, {storyPage}.atlasPanelMarkup, {storyPage}.protectedAreas.panelMarkup)"
+        }
+    },
+    taxonPanelVisible: "$compute:howe.protectedAreas.panelVisible({self}.taxonPanel.markup, {self}.activePaneKey)",
+    // The Protected Areas pane selects categories from its chart and individual areas from the map, describing each
+    // area on hover - see howe-protectedPane.vue
+    protectedAreas: {
+        $component: {
+            $layers: "howe.protectedAreas"
+        }
+    },
     solowParams: {
         baselineYear: 1897,
         analysisYear: 2024
@@ -43,9 +70,6 @@ fluid.def("howe.story", {
         Solow: {
             layers: ["reknitr.solowPaneHandler"]
         },
-        Protected: {
-            resizeHeight: true
-        },
         TopContributions: {
             iNatPanels: [{
                 taxon: {
@@ -72,7 +96,13 @@ fluid.def("howe.story", {
     },
     map: {
         $component: {
-            $layers: ["hortis.libreMap.withTiles", "hortis.libreMap.esriTiles"]
+            $layers: ["hortis.libreMap.withTiles", "hortis.libreMap.esriTiles"],
+            // The Protected Areas pane shows the grid of the native species outside protected areas when they are selected
+            gridVisible: "{storyPage}.protectedAreas.gridVisible",
+            // A selection of some of the species of a region, made by the figures of the Protected Areas pane, outlines
+            // and marks the region itself
+            highlightRegion: "$effect:bioreportr.storyMap.highlightRegion({self}.readyMap, {storyPage}.protectedAreas.baseRegion, {storyPage}.mapData)",
+            legendRowsMarkup: "$compute:bioreportr.storyMap.legendMarkup({self}.legendRows, {storyPage}.selectedStatus, {storyPage}.protectedAreas.baseRegion)"
         }
     }
 });
