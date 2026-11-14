@@ -1,12 +1,35 @@
 [
   {
+    "title": "In Memory of Plants",
+    "shortTitle": "In Memoriam",
+    "weight": 1,
+    "paneComponent": "howe.tracesPane",
+    "paneKey": "Traces",
+    "file": null,
+    "dataFile": null,
+    "widgetIds": [],
+    "layers": []
+  },
+  {
+    "title": "The lost plants of Átl’ḵa7tsem/Howe Sound",
+    "shortTitle": "Lost Plants",
+    "weight": 2,
+    "paneComponent": "howe.lostPlantsPane",
+    "paneKey": "LostPlants",
+    "file": null,
+    "dataFile": null,
+    "widgetIds": [],
+    "layers": []
+  },
+  {
     "title": "Howe Sound's vascular plant diversity",
     "shortTitle": "Regional Diversity",
-    "weight": 1,
+    "weight": 3,
     "paneKey": "Vascular_BEC",
     "regionField": "BEC",
     "visibleGrid": false,
     "visibleObsTable": true,
+    "paneComponent": "howe.becPane",
     "view": {
       "type": "view",
       "lon": -123.2194,
@@ -24,7 +47,7 @@
       "MHmm2",
       "CMAunp"
     ],
-    "file": "Vascular_BEC.html",
+    "file": null,
     "dataFile": null,
     "widgetIds": [],
     "layers": [
@@ -34,7 +57,7 @@
   {
     "title": "History of collection activities within the region",
     "shortTitle": "History",
-    "weight": 2,
+    "weight": 4,
     "visibleGrid": true,
     "visibleObsTable": false,
     "view": {
@@ -57,7 +80,7 @@
   {
     "title": "Flora of Átl’ḵa7tsem/Howe Sound",
     "shortTitle": "Atlas",
-    "weight": 3,
+    "weight": 5,
     "visibleGrid": true,
     "visibleFilters": true,
     "visibleObsTable": true,
@@ -85,7 +108,7 @@
   {
     "title": "Community contributions to our knowledge of the regional plant diversity",
     "shortTitle": "Community Science",
-    "weight": 4,
+    "weight": 6,
     "paneKey": "TopContributions",
     "file": "TopContributions.html",
     "dataFile": null,
@@ -95,7 +118,7 @@
   {
     "title": "Native plant diversity within protected areas",
     "shortTitle": "Protected Areas",
-    "weight": 5,
+    "weight": 7,
     "regionField": "Protected",
     "visibleGrid": false,
     "paneComponent": "howe.protectedPane",
@@ -130,7 +153,7 @@
   {
     "title": "Finding the lost plants",
     "shortTitle": "Find the Plants",
-    "weight": 5,
+    "weight": 8,
     "paneKey": "Solow",
     "file": "Solow.html",
     "dataFile": null,
@@ -140,7 +163,7 @@
   {
     "title": "Community Curation",
     "shortTitle": "Living Data",
-    "weight": 7,
+    "weight": 9,
     "paneComponent": "bioreportr.curationPane",
     "foldVizControlsOnTaxon": true,
     "paneKey": "Curation",

@@ -22,6 +22,17 @@ provincialConcern <- function (status) {
   })
 }
 rawList$provincial_concern <- provincialConcern(rawList$provincial_conservation_status)
+
+# As on the W̱SÁNEĆ/Saanich Peninsula, a species is historical - "reported" - if it was reported in the past but has not
+# been recorded since 2000, and confirmed if it has been found again since then. A historically reported species with
+# a dated record since 2000 is therefore confirmed. The species list of the 2020 UNESCO nomination, entered as
+# pseudo-records dated 2020-07-01, is no sighting and does not count
+catalogue <- timedFread("tabular_data/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv")
+sightedSince2000 <- unique(catalogue$taxonName[!grepl("UNESCO Nomination", catalogue$datasetName) &
+  suppressWarnings(as.integer(substr(as.character(catalogue$eventDate), 1, 4))) >= 2000])
+refound <- rawList$occurrence_status == "reported" & rawList$taxonName %in% sightedSince2000
+wg("{sum(refound)} historically reported species found again since 2000 are confirmed: {paste(rawList$taxonName[refound], collapse = ', ')}")
+rawList$occurrence_status[refound] <- "confirmed"
 wg("{sum(rawList$provincial_concern == 'concern')} species of provincial conservation concern")
 reducedList <- rawList %>% select(c("taxonName", "introduction_status", "occurrence_status", "infrataxon_status", "provincial_concern", "provenance_status", "solow_EP", "phylum"))
 reducedList <- reducedList %>% rename("reportingStatus" = "occurrence_status", "scientificName" = "taxonName")

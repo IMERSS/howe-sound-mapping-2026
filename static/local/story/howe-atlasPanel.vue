@@ -21,6 +21,9 @@ fluid.def("howe.atlasPanel", {
     // The extirpation risk pane shows the same panel of its chosen plant, with its regional EP - as the W̱SÁNEĆ/Saanich
     // Peninsula's does
     solowDatedObs: "$compute:howe.atlas.dated({self}.solowTaxonObs)",
+    // The populations mapped by the extirpation risk pane are drawn from dated records alone, since an undated record
+    // gives no time of sighting for its population's EP - the records table still lists every record
+    solowEPObs: "$compute:howe.atlas.datedEPObs({self}.solowTaxonObs, {self}.recordAnnotations)",
     // The map pans and zooms to the records of the plant chosen in the extirpation risk pane's table
     fitToSolowTaxon: "$effect:howe.atlas.fitToTaxon({self}.map.readyMap, {self}.solowTaxa.selectedTaxon, {self}.obsRows, {self}.map.zoomDuration, {self}.activePaneKey)",
     solowTaxonPanel: {
@@ -35,6 +38,8 @@ fluid.def("howe.atlasPanel", {
     atlasTiles: "$compute:howe.atlas.tilesMarkup({self}.taxa.allRows, {self}.statusById, {self}.selectedStatus)",
     sectionInserts: "$compute:howe.atlas.sectionInserts({self}.atlasTiles)",
     paneClick: "$method:howe.atlas.paneClick({self}, {0}:event)",
+    // A click anywhere on a row of the checklist chooses its taxon, as a click on one of its names does
+    checklistRowClick: "$effect:howe.atlas.bindRowClick({self}, {global})",
     // The checklist shows each species' reporting status by an icon - see howe.atlas.checklistDecoration
     checklist: {
         $component: {
@@ -86,7 +91,25 @@ howe.atlas.fitToTaxon = function (map, taxon, obsRows, duration, activePaneKey) 
 };
 
 // The dated records of a plant, as the panel charts them
-howe.atlas.dated = records => records.filter(record => record.eventDate);
+// - sightings, leaving out the 2020 UNESCO nomination's species list, which gives no date of sighting
+howe.atlas.dated = records => records.filter(record => record.eventDate && !howe.atlas.isListRecord(record));
+
+/**
+ * Whether a record is one of the species list of the 2020 UNESCO nomination of the biosphere region, entered as
+ * pseudo-records all dated 2020-07-01 at one place. They remain among the records shown, but are not sightings: they
+ * count neither towards extirpation probability nor towards the history of a plant's records - as
+ * scripts/rebuild_howe_ultimate_list.py leaves them out of the EP of the summary.
+ * @param {Object} record - A record
+ * @return {Boolean} `true` if the record is one of the nomination's species list
+ */
+howe.atlas.isListRecord = record => /UNESCO Nomination/.test(record.datasetName || "");
+
+// The records which are sightings of a plant - all but those of the nomination's species list
+howe.atlas.sightings = records => records.filter(record => !howe.atlas.isListRecord(record));
+
+// The records from which the extirpation risk pane's populations are drawn - those counted towards EP, as
+// bioreportr.solowObsForEP chooses them, which are sightings and also have a date
+howe.atlas.datedEPObs = (records, annotations) => howe.atlas.dated(howe.atlas.sightings(bioreportr.solowObsForEP(records, annotations)));
 
 /**
  * Decorate a checklist row with an icon of its taxon's reporting status, as hortis.blitzChecklistDecoration does, but
@@ -105,24 +128,47 @@ howe.atlas.checklistDecoration = function (row) {
     return node;
 };
 
+// The story pages whose checklist rows already choose their taxa
+howe.atlas.rowClickBound = new WeakSet();
+
+/**
+ * Let a click anywhere on a row of the checklist - on the separator between its names, or the space beside them -
+ * choose its taxon, as hortis.checklist.click does only for a click on one of its names, by passing it on to the
+ * row's first name.
+ * @param {howe.story} storyPage - The story page
+ * @param {Window} window - The window holding the story page
+ */
+howe.atlas.bindRowClick = function (storyPage, window) {
+    if (!howe.atlas.rowClickBound.has(storyPage)) {
+        howe.atlas.rowClickBound.add(storyPage);
+        window.document.addEventListener("click", event => {
+            const row = event.target.matches?.("li.checklist-row") ? event.target : null;
+            const name = row && [...row.children].find(child => child.matches("p[data-row-id]"));
+            if (name) {
+                name.click();
+            }
+        });
+    }
+};
+
 /** The atlas's tiles of the three groups of species **/
 
-// The year from which a record counts as recent - the first of the summary's new reports, and of its search efforts
-howe.atlas.recentYear = 2016;
+// The year from which a record counts as recent, the baseline of sightings since 2000 - as on the W̱SÁNEĆ/Saanich Peninsula
+howe.atlas.recentYear = 2000;
 
 // Each tile is a link which selects its group
 howe.atlas.tiles = [{
     status: "confirmed",
     name: "Confirmed",
-    meaning: "Reported historically and recorded again in recent searches."
+    meaning: "Reported historically and found again since 2000."
 }, {
     status: "unconfirmed",
     name: "Historical",
-    meaning: "Reported in the past but not yet found again."
+    meaning: "Reported in the past but not recorded since 2000."
 }, {
     status: "new",
     name: "Newly reported",
-    meaning: "First reported in the region since 2016."
+    meaning: "Added new to the flora from recent reports."
 }];
 
 /**
@@ -172,21 +218,28 @@ howe.atlas.sectionInserts = tiles => ({"howe-status-tiles": tiles});
  */
 howe.atlas.paneClick = function (storyPage, event) {
     const tile = event.target.closest(".howe-status-link");
+    // A plant of the Lost Plants gallery opens the extirpation risk pane on it - see howe-lostPlantsPane.vue
+    const card = event.target.closest(".howe-lost-card");
     if (tile) {
         const status = tile.dataset.status;
         storyPage.selectedStatus = storyPage.selectedStatus === status ? null : status;
+    } else if (card) {
+        const dokkument = event.target.ownerDocument;
+        howe.lostPlants.showTaxon(storyPage, card.dataset.taxonId, "Solow", dokkument, dokkument.defaultView);
     }
 };
 
 /**
- * Group the dated records by taxon.
+ * Group the dated sightings by taxon - the records of the In Memoriam timeline and of the summaries of the atlas's
+ * groups, which leave out the nomination's species list - see howe.atlas.isListRecord.
  * @param {Object[]} obsRows - All records
  * @return {Map<String, Object[]>} The dated records of each taxon, by id
  */
 howe.atlas.groupRecords = function (obsRows) {
     const byTaxon = new Map();
+    // The nomination's species list is no sighting, so has no place in the history of a plant's records
     obsRows.forEach(obs => {
-        if (obs.eventDate) {
+        if (obs.eventDate && !howe.atlas.isListRecord(obs)) {
             const records = byTaxon.get(obs.iNaturalistTaxonId) || [];
             records.push(obs);
             byTaxon.set(obs.iNaturalistTaxonId, records);
@@ -317,7 +370,7 @@ howe.statusTooltip.topRecorders = function (records) {
 howe.statusTooltip.isRecent = record => parseInt(record.eventDate, 10) >= howe.atlas.recentYear;
 
 howe.statusTooltip.renderers = {
-    // When each historically reported species was first found again in recent searches, and who found the most of them
+    // When each historically reported species was first found again since 2000, and who found the most of them again
     confirmed: function (taxa, byTaxon) {
         const refound = taxa.map(taxon => (byTaxon.get(taxon.id) || []).slice().sort(bioreportr.obsDateComparator)
             .find(howe.statusTooltip.isRecent)).filter(record => record);
@@ -420,7 +473,8 @@ howe.atlas.statusLabel = status => {
 howe.atlas.field = (label, value) => value ? `<dt>${label}:</dt> <dd>${hortis.dataTable.encode(value)}</dd>` : "";
 
 /**
- * Find the dated records of a taxon and of any taxa beneath it, in date order.
+ * Find the dated sightings of a taxon and of any taxa beneath it, in date order - leaving out the 2020 UNESCO
+ * nomination's species list.
  * @param {Object[]} obsRows - All records
  * @param {Object<String, TaxonRow>} rowById - Taxon rows indexed by id
  * @param {TaxonRow|null} taxon - The selected taxon
@@ -434,7 +488,8 @@ howe.atlas.taxonRecords = function (obsRows, rowById, taxon) {
         }
         return within;
     };
-    return taxon ? obsRows.filter(obs => obs.eventDate && isWithin(obs.iNaturalistTaxonId)).sort(bioreportr.obsDateComparator) : [];
+    // The nomination's species list is no sighting, so gives no date of first or last sighting - see howe.atlas.isListRecord
+    return taxon ? obsRows.filter(obs => obs.eventDate && !howe.atlas.isListRecord(obs) && isWithin(obs.iNaturalistTaxonId)).sort(bioreportr.obsDateComparator) : [];
 };
 
 /**
@@ -956,5 +1011,12 @@ howe.atlas.notesMarkup = function (taxon, records, historyById, sources, byTaxon
 .howe-callout {
     color: #FDF2CE;
     font-weight: 700;
+}
+
+/* The Community Science pane's lead-in, callout and project link are emphasised alike: cream, never bold - as on the
+   W̱SÁNEĆ/Saanich Peninsula */
+.mxcw-paneKey-TopContributions .mxcw-sectionColumn > p .howe-callout {
+    color: #FDF2CE;
+    font-weight: 400;
 }
 </style>

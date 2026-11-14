@@ -34,7 +34,7 @@ Ailanthus altissima,exotic,new 2023,non-infrataxon,unknown,no_voucher,0.008,Trac
 Aira caryophyllea,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
 Aira praecox,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
 Ajuga reptans,exotic,new 2018,non-infrataxon,unknown,no_voucher,0,Tracheophyta
-Alchemilla arvensis,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
+Alchemilla arvensis,native,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
 Alchemilla australis,exotic,new 2022,non-infrataxon,unknown,no_voucher,0.016,Tracheophyta
 Alchemilla mollis,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
 Alchemilla monticola,exotic,new 2023,non-infrataxon,unknown,no_voucher,0.008,Tracheophyta
@@ -64,7 +64,7 @@ Antennaria alpina,native,reported,non-infrataxon,secure,voucher,0.457,Tracheophy
 Antennaria howellii,native,confirmed,non-infrataxon,secure,no_voucher,0.047,Tracheophyta
 Antennaria media,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
 Antennaria neglecta,native,reported,non-infrataxon,secure,voucher,0.262,Tracheophyta
-Antennaria rosea,native,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
+Antennaria rosea,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
 Antennaria umbrinella,native,confirmed,non-infrataxon,secure,voucher,0.008,Tracheophyta
 Anthoxanthum hirtum,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
 Anthoxanthum odoratum,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
@@ -117,7 +117,7 @@ Barbarea vulgaris,exotic,confirmed,non-infrataxon,unknown,voucher,0.024,Tracheop
 Bellis perennis,exotic,confirmed,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Berberis aquifolium,native,confirmed,non-infrataxon,secure,no_voucher,0,Tracheophyta
 Berberis nervosa,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
-Berberis thunbergii,exotic,reported,non-infrataxon,unknown,voucher,0.097,Tracheophyta
+Berberis thunbergii,exotic,confirmed,non-infrataxon,unknown,voucher,0.097,Tracheophyta
 Betula glandulosa,native,new 2017,non-infrataxon,secure,no_voucher,0.054,Tracheophyta
 Betula occidentalis,native,new 2021,non-infrataxon,secure,no_voucher,0,Tracheophyta
 Betula papyrifera,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
@@ -131,7 +131,7 @@ Boechera calderi,native,reported,non-infrataxon,secure,voucher,0.624,Tracheophyt
 Boechera lyallii,native,confirmed,non-infrataxon,secure,voucher,0.008,Tracheophyta
 Boechera stricta,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
 Bolboschoenus fluviatilis,native,new 2020,non-infrataxon,concern,no_voucher,,Tracheophyta
-Bolboschoenus maritimus ssp. paludosus,native,confirmed,infrataxon,concern,voucher,0,Tracheophyta
+Bolboschoenus maritimus ssp. paludosus,native,confirmed,infrataxon,secure,voucher,0,Tracheophyta
 Botrychium lanceolatum,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
 Botrychium neolunaria,native,confirmed,non-infrataxon,secure,voucher,0.008,Tracheophyta
 Botrychium simplex,native,new 2021,non-infrataxon,secure,no_voucher,0,Tracheophyta
@@ -150,7 +150,7 @@ Bromus diandrus,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
 Bromus hordeaceus,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
 Bromus inermis,exotic,new 2019,non-infrataxon,unknown,no_voucher,0.039,Tracheophyta
 Bromus marginatus,native,reported,non-infrataxon,secure,voucher,0.531,Tracheophyta
-Bromus racemosus,native,reported,non-infrataxon,unknown,voucher,0.068,Tracheophyta
+Bromus racemosus,native,confirmed,non-infrataxon,unknown,voucher,0.068,Tracheophyta
 Bromus sitchensis,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
 Bromus sterilis,exotic,confirmed,non-infrataxon,unknown,voucher,0.016,Tracheophyta
 Bromus tectorum,exotic,confirmed,non-infrataxon,unknown,voucher,0.016,Tracheophyta
@@ -161,7 +161,7 @@ Calamagrostis canadensis,native,confirmed,non-infrataxon,secure,no_voucher,0,Tra
 Calamagrostis purpurea,native,reported,non-infrataxon,secure,voucher,0.457,Tracheophyta
 Calamagrostis stricta ssp. inexpansa,native,new 2020,infrataxon,secure,no_voucher,,Tracheophyta
 Callitriche heterophylla var. bolanderi,native,new 2020,infrataxon,secure,no_voucher,,Tracheophyta
-Callitriche heterophylla var. heterophylla,native,reported,infrataxon,secure,voucher,0.649,Tracheophyta
+Callitriche heterophylla var. heterophylla,native,reported,infrataxon,unknown,voucher,0.649,Tracheophyta
 Callitriche palustris,native,new 2018,non-infrataxon,secure,no_voucher,0.039,Tracheophyta
 Callitriche stagnalis,exotic,new 2021,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Callitropsis nootkatensis,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
@@ -210,7 +210,7 @@ Carex leporina,native,reported,non-infrataxon,secure,voucher,0.368,Tracheophyta
 Carex leptopoda,native,new 2020,non-infrataxon,secure,no_voucher,0.016,Tracheophyta
 Carex limosa,native,new 2020,non-infrataxon,secure,no_voucher,0.031,Tracheophyta
 Carex livida,native,new 2021,non-infrataxon,secure,no_voucher,0.023,Tracheophyta
-Carex longii,exotic,reported,non-infrataxon,unknown,voucher,0.146,Tracheophyta
+Carex longii,exotic,confirmed,non-infrataxon,unknown,voucher,0.146,Tracheophyta
 Carex luzulina var. ablata,native,reported,infrataxon,secure,voucher,0.244,Tracheophyta
 Carex lyngbyei,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
 Carex macloviana,native,new 2019,non-infrataxon,secure,no_voucher,0.024,Tracheophyta
@@ -315,13 +315,13 @@ Cotoneaster dammeri,native,confirmed,non-infrataxon,unknown,voucher,0.016,Trache
 Cotoneaster dielsianus,exotic,confirmed,non-infrataxon,unknown,voucher,0.071,Tracheophyta
 Cotoneaster divaricatus,exotic,confirmed,non-infrataxon,unknown,voucher,0.055,Tracheophyta
 Cotoneaster franchetii,exotic,confirmed,non-infrataxon,unknown,voucher,0.008,Tracheophyta
-Cotoneaster hjelmqvistii,exotic,reported,non-infrataxon,unknown,voucher,0.126,Tracheophyta
+Cotoneaster hjelmqvistii,exotic,confirmed,non-infrataxon,unknown,voucher,0.126,Tracheophyta
 Cotoneaster horizontalis,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
-Cotoneaster integrifolius,exotic,reported,non-infrataxon,unknown,voucher,0.126,Tracheophyta
+Cotoneaster integrifolius,exotic,confirmed,non-infrataxon,unknown,voucher,0.126,Tracheophyta
 Cotoneaster rehderi,exotic,new 2016,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Cotoneaster salicifolius,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
 Cotoneaster simonsii,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
-Cotoneaster sternianus,exotic,reported,non-infrataxon,unknown,no_voucher,0.134,Tracheophyta
+Cotoneaster sternianus,exotic,confirmed,non-infrataxon,unknown,no_voucher,0.134,Tracheophyta
 Cotula coronopifolia,exotic,confirmed,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Crataegus douglasii,native,new 2017,non-infrataxon,secure,no_voucher,0,Tracheophyta
 Crataegus monogyna,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
@@ -501,7 +501,7 @@ Glyceria elata,native,new 2020,non-infrataxon,secure,no_voucher,,Tracheophyta
 Glyceria striata,native,reported,non-infrataxon,secure,voucher,0.316,Tracheophyta
 Gnaphalium uliginosum,exotic,confirmed,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Goodyera oblongifolia,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
-Graphephorum wolfii,native,reported,non-infrataxon,concern,voucher,0.146,Tracheophyta
+Graphephorum wolfii,native,confirmed,non-infrataxon,concern,voucher,0.146,Tracheophyta
 Grindelia hirsutula,native,confirmed,non-infrataxon,secure,voucher,0.02,Tracheophyta
 Grindelia stricta,native,confirmed,non-infrataxon,secure,no_voucher,0,Tracheophyta
 Gymnocarpium disjunctum,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
@@ -561,7 +561,7 @@ Isolepis cernua,native,confirmed,non-infrataxon,secure,no_voucher,0,Tracheophyta
 Jacobaea vulgaris,exotic,confirmed,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Juglans regia,exotic,new 2022,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Juncus acuminatus,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
-Juncus albescens,native,new 2020,non-infrataxon,concern,no_voucher,,Tracheophyta
+Juncus albescens,native,new 2020,non-infrataxon,secure,no_voucher,,Tracheophyta
 Juncus alpinoarticulatus,native,reported,non-infrataxon,secure,voucher,0.509,Tracheophyta
 Juncus arcticus ssp. alaskanus,native,confirmed,infrataxon,secure,no_voucher,0,Tracheophyta
 Juncus articulatus,native,new 2020,non-infrataxon,secure,no_voucher,0.008,Tracheophyta
@@ -644,7 +644,7 @@ Luzula comosa var. comosa,native,new 2020,infrataxon,secure,no_voucher,,Tracheop
 Luzula comosa var. laxa,native,new 2020,infrataxon,secure,no_voucher,0.031,Tracheophyta
 Luzula glabrata,exotic,reported,non-infrataxon,unknown,voucher,0.304,Tracheophyta
 Luzula hitchcockii,native,confirmed,non-infrataxon,secure,no_voucher,0.051,Tracheophyta
-Luzula macrantha,native,reported,non-infrataxon,secure,voucher,0.119,Tracheophyta
+Luzula macrantha,native,confirmed,non-infrataxon,secure,voucher,0.119,Tracheophyta
 Luzula multiflora ssp. multiflora,exotic,new 2018,infrataxon,unknown,no_voucher,0,Tracheophyta
 Luzula parviflora ssp. fastigiata,native,reported,infrataxon,secure,voucher,0.674,Tracheophyta
 Luzula parviflora ssp. parviflora,native,confirmed,infrataxon,secure,voucher,0,Tracheophyta
@@ -750,12 +750,12 @@ Osmorhiza purpurea,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
 Oxalis corniculata,exotic,new 2019,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Oxalis oregana,native,new 2019,non-infrataxon,concern,no_voucher,0,Tracheophyta
 Oxalis stricta,exotic,new 2019,non-infrataxon,unknown,no_voucher,0,Tracheophyta
-Oxybasis rubra,native,reported,non-infrataxon,secure,no_voucher,0.146,Tracheophyta
+Oxybasis rubra,native,confirmed,non-infrataxon,secure,no_voucher,0.146,Tracheophyta
 Oxyria digyna,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
 Ozomelis trifida,native,reported,non-infrataxon,secure,voucher,0.655,Tracheophyta
 Packera pauciflora,native,confirmed,non-infrataxon,secure,voucher,0.008,Tracheophyta
 Panicum capillare,native,new 2020,non-infrataxon,secure,no_voucher,0,Tracheophyta
-Panicum miliaceum,exotic,reported,non-infrataxon,unknown,no_voucher,0.126,Tracheophyta
+Panicum miliaceum,exotic,confirmed,non-infrataxon,unknown,no_voucher,0.126,Tracheophyta
 Papaver cambricum,exotic,new 2017,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Papaver nudicaule,exotic,new 2018,non-infrataxon,unknown,no_voucher,0.046,Tracheophyta
 Papaver rhoeas,exotic,new 2023,non-infrataxon,unknown,no_voucher,0,Tracheophyta
@@ -894,7 +894,7 @@ Puccinellia pumila,native,new 2018,non-infrataxon,secure,voucher,0.046,Tracheoph
 Pulmonaria officinalis,exotic,new 2017,non-infrataxon,unknown,no_voucher,0.054,Tracheophyta
 Pulsatilla occidentalis,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta
 Pyracantha coccinea,exotic,confirmed,non-infrataxon,unknown,voucher,0.008,Tracheophyta
-Pyracantha fortuneana,exotic,reported,non-infrataxon,unknown,voucher,0.119,Tracheophyta
+Pyracantha fortuneana,exotic,confirmed,non-infrataxon,unknown,voucher,0.119,Tracheophyta
 Pyrola aphylla,native,new 2020,non-infrataxon,secure,no_voucher,0.008,Tracheophyta
 Pyrola asarifolia ssp. asarifolia,native,reported,infrataxon,secure,voucher,0.368,Tracheophyta
 Pyrola asarifolia ssp. bracteata,native,confirmed,infrataxon,secure,voucher,0.035,Tracheophyta
@@ -945,7 +945,7 @@ Rosa rugosa,exotic,new 2018,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Rubus allegheniensis,exotic,confirmed,non-infrataxon,unknown,voucher,0.008,Tracheophyta
 Rubus bifrons,exotic,confirmed,non-infrataxon,unknown,voucher,0,Tracheophyta
 Rubus chamaemorus,native,new 2020,non-infrataxon,secure,no_voucher,0.031,Tracheophyta
-Rubus fruticosus complex,exotic,reported,non-infrataxon,unknown,voucher,0.119,Tracheophyta
+Rubus fruticosus complex,exotic,confirmed,non-infrataxon,unknown,voucher,0.119,Tracheophyta
 Rubus idaeus ssp. strigosus,native,new 2020,infrataxon,secure,no_voucher,0,Tracheophyta
 Rubus laciniatus,exotic,confirmed,non-infrataxon,unknown,no_voucher,0,Tracheophyta
 Rubus leucodermis,native,confirmed,non-infrataxon,secure,no_voucher,0,Tracheophyta
@@ -998,7 +998,7 @@ Sceptridium multifidum,native,confirmed,non-infrataxon,secure,voucher,0,Tracheop
 Scheuchzeria palustris,native,new 2023,non-infrataxon,secure,no_voucher,0.008,Tracheophyta
 Schoenoplectus acutus,native,new 2017,non-infrataxon,secure,no_voucher,0,Tracheophyta
 Schoenoplectus pungens,native,new 2020,non-infrataxon,secure,no_voucher,,Tracheophyta
-Schoenoplectus subterminalis,native,reported,non-infrataxon,secure,voucher,0.146,Tracheophyta
+Schoenoplectus subterminalis,native,confirmed,non-infrataxon,secure,voucher,0.146,Tracheophyta
 Schoenoplectus tabernaemontani,native,confirmed,non-infrataxon,secure,no_voucher,0,Tracheophyta
 Scirpus cyperinus,native,new 2023,non-infrataxon,unknown,no_voucher,0.008,Tracheophyta
 Scirpus microcarpus,native,confirmed,non-infrataxon,secure,no_voucher,0,Tracheophyta
@@ -1126,7 +1126,7 @@ Triglochin maritima,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyt
 Trillium ovatum var. ovatum,native,confirmed,infrataxon,secure,no_voucher,0,Tracheophyta
 Triphysaria pusilla,native,new 2022,non-infrataxon,secure,no_voucher,0.016,Tracheophyta
 Tripleurospermum inodorum,native,new 2021,non-infrataxon,unknown,no_voucher,0.008,Tracheophyta
-Trisetum canescens,native,reported,non-infrataxon,secure,voucher,0.146,Tracheophyta
+Trisetum canescens,native,confirmed,non-infrataxon,secure,voucher,0.146,Tracheophyta
 Trisetum cernuum,native,confirmed,non-infrataxon,secure,voucher,0.032,Tracheophyta
 Triteleia grandiflora,native,new 2020,non-infrataxon,secure,no_voucher,,Tracheophyta
 Triteleia hyacinthina,native,confirmed,non-infrataxon,secure,voucher,0,Tracheophyta

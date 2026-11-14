@@ -973,8 +973,8 @@ howe.protectedAreas.showSelection = function (selectedRegion, baseRegion, active
 <span>native species · 73% of the native flora</span>
 </div>
 <div class="howe-pa-stat" data-select="Protected areas · species of conservation concern" role="button" tabindex="0">
-<b>6</b>
-<span>of the 19 species of conservation concern</span>
+<b>5</b>
+<span>of the 17 species of conservation concern</span>
 </div>
 </div>
 </section>
@@ -988,7 +988,7 @@ howe.protectedAreas.showSelection = function (selectedRegion, baseRegion, active
 <span>native species · 27% of the native flora</span>
 </div>
 <div class="howe-pa-stat" data-select="Unprotected native plant diversity · species of conservation concern" role="button" tabindex="0">
-<b>13</b>
+<b>12</b>
 <span>species of conservation concern</span>
 </div>
 <div class="howe-pa-stat" data-select="Unprotected native plant diversity · within Key Biodiversity Areas" role="button" tabindex="0">
@@ -1148,7 +1148,7 @@ howe.protectedAreas.showSelection = function (selectedRegion, baseRegion, active
 <span>native species · 20% of the native flora</span>
 </div>
 <div class="howe-pa-stat" data-select="Wildlife management area · species of conservation concern" role="button" tabindex="0">
-<b>3</b>
+<b>2</b>
 <span>species of conservation concern</span>
 </div>
 <div class="howe-pa-stat" data-select="Wildlife management area · found in no other category" role="button" tabindex="0">
@@ -1873,7 +1873,7 @@ howe.protectedAreas.showSelection = function (selectedRegion, baseRegion, active
 <span>native species · 20% of the native flora</span>
 </div>
 <div class="howe-pa-stat" data-select="Skwelwil'Em Squamish Estuary · species of conservation concern" role="button" tabindex="0">
-<b>3</b>
+<b>2</b>
 <span>species of conservation concern</span>
 </div>
 <div class="howe-pa-stat">
@@ -2244,7 +2244,7 @@ howe.protectedAreas.showSelection = function (selectedRegion, baseRegion, active
 <span>native species · 51% of the native flora</span>
 </div>
 <div class="howe-pa-stat" data-select="Published Key Biodiversity Areas · species of conservation concern" role="button" tabindex="0">
-<b>8</b>
+<b>7</b>
 <span>species of conservation concern</span>
 </div>
 <div class="howe-pa-stat">
@@ -2301,7 +2301,7 @@ howe.protectedAreas.showSelection = function (selectedRegion, baseRegion, active
 <span>native species · 31% of the native flora</span>
 </div>
 <div class="howe-pa-stat" data-select="Squamish River · species of conservation concern" role="button" tabindex="0">
-<b>4</b>
+<b>3</b>
 <span>species of conservation concern</span>
 </div>
 <div class="howe-pa-stat">

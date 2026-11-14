@@ -1,7 +1,7 @@
 ---
 title: Native plant diversity within protected areas
 shortTitle: Protected Areas
-weight: 5
+weight: 7
 knit: (function(input, ...) { source(here::here("R/knit_render.R"), local = TRUE)$value(input, ...) })
 paneHandlerLayers: ["reknitr.obsMapPaneHandler"]
 regionField: Protected

@@ -1,5 +1,10 @@
 <fluid-import src="../../bioreportr/sfc/bioreportr-storyPage.vue"></fluid-import>
 <fluid-import src="howe-atlasPanel.vue"></fluid-import>
+<!-- The opening panes, In Memoriam and Lost Plants - see the front matter of content/story/Traces.Rmd and LostPlants.Rmd -->
+<fluid-import src="howe-tracesPane.vue"></fluid-import>
+<fluid-import src="howe-lostPlantsPane.vue"></fluid-import>
+<!-- The Regional Diversity pane, whose biogeoclimatic units are listed as chips - see content/story/Vascular_BEC.Rmd -->
+<fluid-import src="howe-becPane.vue"></fluid-import>
 <fluid-import src="howe-protectedPane.vue"></fluid-import>
 <!-- The iNaturalist panels of the Top Contributions pane -->
 <script src="%@imerss/inat-components/dist/standalone.min.js" fluid-client data-fl-scope="global"></script>
@@ -55,6 +60,23 @@ fluid.def("howe.story", {
     clearTaxonOnPaneChange: "$effect:howe.story.clearTaxonOnPaneChange({self}, {self}.activePaneKey)",
     // and likewise on moving between the selections of the Protected Areas pane - its tabs, categories, areas and figures
     clearTaxonOnRegionChange: "$effect:howe.story.clearTaxonOnRegionChange({self}, {self}.selectedRegion, {self}.activePaneKey)",
+    // The opening pane, in memory of plants: their key moments appear across the map as a timeline plays - see
+    // howe-tracesPane.vue
+    traces: {
+        $component: {
+            $layers: "howe.traces"
+        }
+    },
+    // The gallery of "lost" plants shown beside the Lost Plants pane, in place of the map - see howe-lostPlantsPane.vue
+    lostPlants: {
+        $component: {
+            $layers: "howe.lostPlants"
+        }
+    },
+    paneMarkup: "$compute:howe.paneMarkup({self}.lostPlants.markup)",
+    leftPaneClass: "$compute:howe.traces.leftPaneClass({self}.traces.active, {self}.traces.paused, {self}.traces.scrubbing, false)",
+    // A pane opened from one without a map is placed on its camera once the map has its size - see howe.story.recentre
+    recentre: "$effect:howe.story.recentre({self}.map.readyMap, {self}.mapData, {self}.activePane)",
     // The Protected Areas pane selects categories from its chart and individual areas from the map, describing each
     // area on hover - see howe-protectedPane.vue
     protectedAreas: {
@@ -86,6 +108,9 @@ fluid.def("howe.story", {
         {filterName: "Graminoid status", fieldName: "graminoid", fieldValues: ["graminoid", "non-graminoid"], valueOf: "hortis.graminoidValue"}
     ],
     paneOverrides: {
+        Traces: {
+            visibleMap: true
+        },
         Solow: {
             layers: ["reknitr.solowPaneHandler"]
         },
@@ -129,6 +154,33 @@ fluid.def("howe.story", {
         }
     }
 });
+
+// Whether the map was shown by the previous pane, by map
+howe.story.mapWasShown = new WeakMap();
+
+/**
+ * Place the map on the active pane's camera again once it has its full size, when the previous pane hid it - e.g. on
+ * moving from Lost Plants to In Memoriam - as the W̱SÁNEĆ/Saanich Peninsula's saanich.recentre does. The story page
+ * moves the camera as the pane opens, when the map is still without size, which leaves it centred in the wrong place
+ * once the map has grown.
+ * @param {maplibregl.Map} map - The story's map, once ready
+ * @param {Object} mapData - The story's map data, with each pane's camera
+ * @param {Object} activePane - The active pane's settings, with its `paneKey` and `visibleMap`
+ */
+howe.story.recentre = function (map, mapData, activePane) {
+    if (!map || !activePane) {
+        return;
+    }
+    const wasShown = howe.story.mapWasShown.get(map);
+    howe.story.mapWasShown.set(map, !!activePane.visibleMap);
+    const camera = mapData?.panes?.[activePane.paneKey];
+    if (wasShown === false && activePane.visibleMap && camera?.center) {
+        hortis.libreMap.afterLayout(map, () => {
+            map.resize();
+            map.jumpTo({center: camera.center, zoom: camera.zoom});
+        });
+    }
+};
 
 // The pane last shown by each story page, so that the plant chosen in it is cleared on moving to another
 howe.story.lastPaneKey = new WeakMap();

@@ -1,13 +1,15 @@
 ---
 title: Howe Sound's vascular plant diversity
 shortTitle: Regional Diversity
-weight: 1
+weight: 3
 knit: (function(input, ...) { source(here::here("R/knit_render.R"), local = TRUE)$value(input, ...) })
 paneHandlerLayers: ["reknitr.obsMapPaneHandler"]
 paneKey: Vascular_BEC
 regionField: BEC
 visibleGrid: false
 visibleObsTable: true
+# The component rendering this pane's section, into whose template npm run story writes it - see AGENTS.md
+paneComponent: howe.becPane
 ---
 
 ## Howe Sound's vascular plant diversity
@@ -24,8 +26,23 @@ source("scripts/Vascular_BEC_map_mapbox.R")
 speciesMap
 ```
 
-Explore the region's flora by selecting from the biogeoclimatic units displayed on the map:
+Explore the region's flora by selecting a biogeoclimatic unit, here or on the map:
 
-* Alpine Tundra zone ([CMAunp](#region:CMAunp))
-* Mountain Hemlock zone ([MHmm1](#region:MHmm1), [MHmm2](#region:MHmm2))
-* Coastal Western Hemlock zone ([CWHdm](#region:CWHdm), [CWHds1](#region:CWHds1), [CWHms1](#region:CWHms1), [CWHvm1](#region:CWHvm1), [CWHvm2](#region:CWHvm2), [CWHxm1](#region:CWHxm1))
+```{r, echo=FALSE, results="asis"}
+# The units of each zone as chips, coloured as on the map and named in full on hover - each selects its unit, as a
+# click on the map does, and the selected one is marked - see howe-becPane.vue
+zones <- list("Coastal Western Hemlock" = c("CWHxm1", "CWHdm", "CWHvm1", "CWHvm2", "CWHds1", "CWHms1"),
+              "Mountain Hemlock" = c("MHmm1", "MHmm2"),
+              "Coastal Mountain-heather Alpine" = c("CMAunp"))
+chip <- function (unit) {
+  colour <- palette$col[palette$cat == unit]
+  sprintf('<a class="howe-bec-chip" href="#pane:Vascular_BEC&region:%s" style="--bec-colour: %s" title="%s" @class="howe-bec-chip-selected:@{selected.%s}">%s</a>',
+          unit, colour, becLabels[[unit]], unit, unit)
+}
+rows <- vapply(names(zones), function (zone) {
+  sprintf('<div class="howe-bec-zone"><span class="howe-bec-zone-name">%s</span><span class="howe-bec-chips">%s</span></div>',
+          zone, paste(vapply(zones[[zone]], chip, character(1)), collapse = ""))
+}, character(1))
+# Written as a raw block, which pandoc passes through as it is rather than reading the bindings @{...} as citations
+cat('```{=html}\n<div class="howe-bec-zones">', paste(rows, collapse = ""), '</div>\n```\n', sep = "")
+```
