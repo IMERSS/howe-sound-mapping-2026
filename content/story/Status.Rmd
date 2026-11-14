@@ -17,24 +17,25 @@ statusColors:
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 options(error = rlang::entrace, rlang_backtrace_on_error = "full")
 library(tidyverse)
-plants <- read.csv("tabular_data/Howe_Sound_vascular_plant_records_consolidated_2024-11-labels.csv")
-plant.summary <- read.csv("tabular_data/vascular_plant_summary_resynthesized_2024-11-14.csv", fileEncoding = "UTF-8")
-new <- plant.summary %>% filter(str_detect(reportingStatus, "new")) 
-confirmed <- plant.summary %>% filter(reportingStatus == 'confirmed') 
-reported <- plant.summary %>% filter(reportingStatus == 'reported') 
-observed <- plant.summary %>% filter(iNatObservationStatus == 'observed') 
+plants <- read.csv("tabular_data/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv")
+plant.summary <- read.csv("tabular_data/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv", fileEncoding = "UTF-8") %>%
+  filter(inSummary == 1)
 ```
 
 ## Flora of Átl’ḵa7tsem/Howe Sound
 
 To date, `r nrow(plant.summary)` vascular plant species have been recorded in the Átl’ḵa7tsem/Howe Sound Biosphere
-Region, drawing together `r nrow(plants)` records from historical collections, iNaturalist observations and other
-sources. Each species falls into one of three groups: *confirmed* species, reported historically and recorded again
-in recent searches; *historical* species, reported in the past but not yet found again; and *new* species, first
-reported in the region in recent years.
+Region, drawing together `r format(nrow(plants), big.mark = ",")` records from historical collections, iNaturalist
+observations and other sources. Each species falls into one of three groups:
 
-Pick a plant from the list to see only its records on the map, or open *Filters* to narrow the records by recorder.
-Open *Records* below the map for the details behind each selection.
+<div class="howe-status-tiles"></div>
+
+:::: {.howe-howto}
+Click a group to show only the records of those species, old and recent, on the map and in the list.
+Open *Filters* to narrow records by recorder, pick a plant from the list to see only its records, or use the shape
+tool at the top left of the map to draw an area, double-clicking to finish. Open *Records* below the map for the
+details behind each selection.
+::::
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 source("scripts/Community_science_contributions_mapbox.R")

@@ -85,7 +85,12 @@ watershed.feature <- list(type = "vector", source = "Watershed.Boundary", outlin
 
 allSources <- merge_lists(hillshade.source, coastline.source, watershed.source)
 
-view.feature <- list(type = "view", lon = -123.2194, lat = 49.66076, zoom = 8.5)
+# The map stays fixed on the centre of the grid of all the records, the fullest it reaches as the slider plays, rather
+# than following the records of each year - see howe.story.followRecords
+history.records <- timedFread("static/local/data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv") %>%
+  dplyr::filter(!is.na(decimalLatitude), !is.na(decimalLongitude), decimalLatitude != 0, decimalLongitude != 0)
+view.feature <- list(type = "view", lon = mean(range(history.records$decimalLongitude)),
+                     lat = mean(range(history.records$decimalLatitude)), zoom = 8.5)
 
 allFeatures = list(view.feature, hillshade.feature, coastline.feature, choropleth.feature, watershed.feature)
 

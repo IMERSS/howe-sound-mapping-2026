@@ -8,6 +8,11 @@ assignedTaxa <-    timedFread("tabular_data/AHSBR_Tracheophyta_ultimate-merged-s
 assignedSummary <- timedFread("tabular_data/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-assigned.csv")
 assignedSummary$inSummary = 1
 
+# Each species' provincial concern is that judged from its rank by prepare_summary.R, which writes the -orig summary -
+# taken from there, so that a change to the judgement needs no fresh assignment of names
+origSummary <- timedFread("tabular_data/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-orig.csv")
+assignedSummary$provincial_concern <- origSummary$provincial_concern[match(assignedSummary$scientificName, origSummary$scientificName)]
+
 assignedSummaryDupes <- assignedSummary %>%
   group_by(iNaturalistTaxonId) %>%
   filter(n() > 1)

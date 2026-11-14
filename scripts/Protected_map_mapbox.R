@@ -184,7 +184,7 @@ group_chart <- function (group, caption, areas, color, extra = "") {
       caption),
     htmltools::tags$ul(class = "howe-pa-rows",
       lapply(seq_len(nrow(areas)), function (i) {
-        bar_row(areas$name[i], areas$count[i], max, color, NA, extra)
+        bar_row(areas$name[i], areas$count[i], max, color, NA, extra, selects = areas$count[i] > 0)
       })
     )
   )
@@ -221,6 +221,11 @@ category.plural <- c("Ecological reserve" = "Ecological reserves", "Protected ar
   "Wildland zone" = "The Sea to Sky wildland zones",
   "Other effective conservation measure" = "Other effective conservation measures",
   "Private conservation land" = "Private conservation lands")
+# A category as it follows "in", e.g. "provincial parks", "the conservancy", "the Sea to Sky wildland zones"
+in_phrase <- function (category) {
+  plural <- category.plural[[category]]
+  `if`(str_detect(plural, "^The "), str_replace(plural, "^The ", "the "), paste0(tolower(substr(plural, 1, 1)), substring(plural, 2)))
+}
 ordinal <- function (n) paste0(n, `if`(n %% 100 %in% 11:13, "th", c("th", "st", "nd", "rd", rep("th", 6))[(n %% 10) + 1]))
 
 # The selection of some of the species of a region - its native species, those of conservation concern, or for the
@@ -232,8 +237,9 @@ native.subset <- "native species"
 concern.subset <- "species of conservation concern"
 all.areas <- "Protected areas"
 
-# A figure, which may select the species it counts
+# A figure, which may select the species it counts - unless it counts none, since selecting them would leave no records
 stat <- function (value, label, select = NULL) {
+  if (identical(as.character(value), "0")) select <- NULL
   htmltools::tags$div(class = "howe-pa-stat", `data-select` = select, role = if (!is.null(select)) "button",
     tabindex = if (!is.null(select)) "0", htmltools::tags$b(value), htmltools::tags$span(label))
 }
@@ -267,10 +273,10 @@ tab <- function (region, text) {
 }
 
 overview.card <- card("", "#eefaff", "All protected and conserved areas",
-  summary = str_glue("Based on our current knowledge, {protected.stats$protected.percent} percent of the ",
-    "{protected.stats$species} native vascular plant species known to the region have been reported within its ",
-    "protected and conserved areas, from provincial parks and ecological reserves to wildlife areas and lands held ",
-    "by conservancies. The other {protected.stats$unprotected} have so far been recorded only outside them."),
+  summary = str_glue("Of the {protected.stats$species} native vascular plants known from the region, ",
+    "{protected.stats$protected} ({protected.stats$protected.percent}%) have been recorded in at least one protected or ",
+    "conserved area, from provincial parks and ecological reserves to old growth management areas and private ",
+    "conservation lands. The remaining {protected.stats$unprotected} are so far known only from outside them."),
   stats = list(
     stat(nrow(protected.areas), str_glue("areas in {nrow(palette)} categories")),
     stat(format_n(sum(area.ha)), "hectares"),
@@ -287,14 +293,13 @@ category.cards <- lapply(palette$category[palette$count > 0], function (category
   n <- sum(in.category)
   card(category, palette$color[palette$category == category], category.plural[[category]] %>% str_remove("^The ") %>% str_to_sentence(),
     subtitle = str_glue("{n} {ifelse(n == 1, 'area', 'areas')} · {format_n(sum(area.ha[in.category]))} hectares"),
-    summary = str_glue("{category.plural[[category]]} {ifelse(n == 1, 'holds', 'hold')} {percent(length(ids))} percent ",
-      "of the native plant diversity known to the region: {length(ids)} of its {protected.stats$species} native ",
-      "vascular plant species have been reported within {ifelse(n == 1, 'it', 'them')}."),
+    summary = str_glue("{length(ids)} of the region's {protected.stats$species} native vascular plants ",
+      "({percent(length(ids))}%) have been recorded in {in_phrase(category)}."),
     stats = list(
       stat(length(ids), str_glue("native species · {percent(length(ids))}% of the native flora"), subset(category, native.subset)),
       stat(sum(ids %in% concern.ids), "species of conservation concern", subset(category, concern.subset)),
-      stat(sum(!ids %in% others), "species reported in no other category", subset(category, "found in no other category")),
-      stat(format_n(sum(records$category %in% category)), "records of native species")
+      stat(sum(!ids %in% others), "species found in no other category", subset(category, "found in no other category")),
+      stat(format_n(sum(records$category %in% category)), "native plant records")
     ),
     list = `if`(n > 1, richest("Richest in native species",
       st_drop_geometry(protected.areas)[in.category, ] %>% transmute(name, count))))
@@ -306,19 +311,19 @@ area.cards <- lapply(seq_len(nrow(protected.areas)), function (i) {
   peers <- protected.areas %>% st_drop_geometry() %>% filter(category == area$category)
   rank <- sum(peers$count > area$count) + 1
   owner <- `if`(str_detect(area$category, "Private"), str_glue(" · {area$owner}"), "")
-  # Its rank among the areas of its category, e.g. ", the 3rd richest of its 16 regional parks"
-  standing <- `if`(nrow(peers) > 1, str_glue(", the {`if`(rank == 1, '', paste0(ordinal(rank), ' '))}richest of its ",
-    "{nrow(peers)} {tolower(category.plural[[area$category]])}"), "")
+  # Its rank among the areas of its category, e.g. "—the most of the 14 provincial parks", "—3rd among the 14 provincial parks"
+  standing <- `if`(nrow(peers) > 1, str_glue("\u2014{`if`(rank == 1, 'the most of', paste(ordinal(rank), 'among'))} ",
+    "the {nrow(peers)} {in_phrase(area$category) %>% str_remove('^the ')}"), "")
   card(area$name, area$color, area$name,
     subtitle = str_glue("{area$category}{owner} · {format_n(area.ha[i])} hectares"),
     back = list(link(area$category, str_glue("↑ {category.plural[[area$category]] %>% str_remove('^The ') %>% str_to_sentence()}"))),
-    summary = `if`(length(ids) == 0, str_glue("No native species have yet been reported within {area$name}."),
-      str_glue("{length(ids)} native species, {percent(length(ids))} percent of the native plant diversity known to ",
-        "the region, have been reported within {area$name}{standing}.")),
+    summary = `if`(length(ids) == 0, str_glue("No native plants have yet been recorded in {area$name}."),
+      str_glue("{length(ids)} native {ifelse(length(ids) == 1, 'plant has', 'plants have')} been recorded in {area$name}, {percent(length(ids))}% of the ",
+        "region's native flora{standing}.")),
     stats = list(
       stat(length(ids), str_glue("native species · {percent(length(ids))}% of the native flora"), subset(area$name, native.subset)),
       stat(sum(ids %in% concern.ids), "species of conservation concern", subset(area$name, concern.subset)),
-      stat(format_n(sum(records$area %in% area$name)), "records of native species")
+      stat(format_n(sum(records$area %in% area$name)), "native plant records")
     ))
 })
 
@@ -330,10 +335,10 @@ unprotected.concern <- sum(unprotected.ids %in% concern.ids)
 unprotected.concern.key <- subset(unprotected.key, concern.subset)
 unprotected.card <- card(unprotected.key, "#e07a5f", "Unprotected native plant diversity",
   subtitle = str_glue("{protected.stats$unprotected} species · {format_n(nrow(unprotected.records))} records"),
-  summary = str_glue("{protected.stats$unprotected} native species, {percent(protected.stats$unprotected)} percent of ",
-    "the native plant diversity known to the region, have so far been reported only outside its protected and ",
-    "conserved areas. The map's grid shows where their records lie - the places where protection does not yet reach ",
-    "this part of the flora, or where it has yet to be looked for within the protected areas."),
+  summary = str_glue("{protected.stats$unprotected} native plants ({percent(protected.stats$unprotected)}% of the ",
+    "region's native flora) have so far been recorded only outside protected and conserved areas. The grid on the map ",
+    "shows where they have been found\u2014places protection has yet to reach, or species still to be looked for ",
+    "within the protected areas."),
   stats = list(
     stat(protected.stats$unprotected, str_glue("native species · {percent(protected.stats$unprotected)}% of the native flora"),
          unprotected.key),

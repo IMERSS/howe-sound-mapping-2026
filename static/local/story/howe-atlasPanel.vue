@@ -17,8 +17,337 @@ fluid.def("howe.atlasPanel", {
     checklistTaxon: "$compute:howe.atlas.resolveTaxon({self}.taxa.rowById, {self}.checklist.search.filterState)",
     atlasRecords: "$compute:howe.atlas.taxonRecords({self}.obsRows, {self}.taxa.rowById, {self}.checklistTaxon)",
     atlasPanelMarkup: `$compute:howe.atlas.panelMarkup({self}.checklistTaxon, {self}.atlasRecords,
-        {self}.curation.historyById, {self}.curationHistorySources, {self}.curation.byTaxon, {self}.recordAnnotations)`
+        {self}.curation.historyById, {self}.curationHistorySources, {self}.curation.byTaxon, {self}.recordAnnotations)`,
+    // The extirpation risk pane shows the same panel of its chosen plant, with its regional EP - as the W̱SÁNEĆ/Saanich
+    // Peninsula's does
+    solowDatedObs: "$compute:howe.atlas.dated({self}.solowTaxonObs)",
+    solowTaxonPanel: {
+        $component: {
+            markup: `$compute:howe.atlas.panelMarkup({storyPage}.solowTaxa.selectedTaxon, {storyPage}.solowDatedObs,
+                {storyPage}.curation.historyById, {storyPage}.curationHistorySources, {storyPage}.curation.byTaxon, {storyPage}.recordAnnotations, solow)`
+        }
+    },
+    // The tiles of the atlas's three groups of species, placed in its section, each selecting its group - as the
+    // W̱SÁNEĆ/Saanich Peninsula's atlas has them
+    statusById: "$compute:hortis.reportingStatusById({self}.taxa.rowById)",
+    atlasTiles: "$compute:howe.atlas.tilesMarkup({self}.taxa.allRows, {self}.statusById, {self}.selectedStatus)",
+    sectionInserts: "$compute:howe.atlas.sectionInserts({self}.atlasTiles)",
+    paneClick: "$method:howe.atlas.paneClick({self}, {0}:event)",
+    // The species of the Community Science pane open on the atlas - see howe.inatSpecies
+    inatSpeciesClick: "$effect:howe.inatSpecies.bind({self}, {global})",
+    // The dated records of each taxon, from which the groups' summaries are drawn
+    byTaxon: "$compute:howe.atlas.groupRecords({self}.obsRows)",
+    // Summaries of each group of species, shown when hovering over its tile or its row of the map's legend
+    statusTooltip: {
+        $component: {
+            $layers: "hortis.withTooltip",
+            cache: "$compute:howe.statusTooltip.makeCache({storyPage}.taxa.allRows)",
+            renderTooltip: `$method:howe.statusTooltip.render({storyPage}.taxa.allRows, {storyPage}.statusById, {storyPage}.byTaxon,
+                {self}.cache, {0}:status)`,
+            hover: {
+                $bindable: {
+                    bind: "howe.statusTooltip.bind({self}, {global}.document)",
+                    unbind: "howe.statusTooltip.unbind({boundValue})"
+                }
+            }
+        }
+    }
 });
+
+// The dated records of a plant, as the panel charts them
+howe.atlas.dated = records => records.filter(record => record.eventDate);
+
+/** The atlas's tiles of the three groups of species **/
+
+// The year from which a record counts as recent - the first of the summary's new reports, and of its search efforts
+howe.atlas.recentYear = 2016;
+
+// Each tile is a link which selects its group
+howe.atlas.tiles = [{
+    status: "confirmed",
+    name: "Confirmed",
+    meaning: "Reported historically and recorded again in recent searches."
+}, {
+    status: "unconfirmed",
+    name: "Historical",
+    meaning: "Reported in the past but not yet found again."
+}, {
+    status: "new",
+    name: "Newly reported",
+    meaning: "First reported in the region since 2016."
+}];
+
+/**
+ * Find the taxa of the summary holding a reporting status.
+ * @param {TaxonRow[]} taxaRows - All taxa
+ * @param {Object<String, String>} statusById - The reporting status of each taxon, by id - see hortis.reportingStatusById
+ * @param {String} status - The reporting status
+ * @return {TaxonRow[]} The taxa
+ */
+howe.atlas.taxaOfStatus = function (taxaRows, statusById, status) {
+    return taxaRows.filter(taxon => taxon.inSummary && statusById[taxon.id] === status);
+};
+
+/**
+ * Render the tile for one group of species.
+ * @param {Object} tile - One entry of `howe.atlas.tiles`
+ * @param {TaxonRow[]} taxa - The species of this group
+ * @param {Boolean} pressed - Whether the group is selected
+ * @return {String} The markup for the tile
+ */
+howe.atlas.renderTile = function (tile, taxa, pressed) {
+    return `<button type="button" class="howe-status-link howe-status-tile" data-status="${tile.status}" aria-pressed="${pressed}" style="--tip-colour:${bioreportr.statusColours[tile.status]}">
+        <span class="howe-tile-name">${tile.name}</span>
+        <span class="howe-tile-count">${bioreportr.formatCount(taxa.length)} <small>species</small></span>
+        <span class="howe-tile-meaning">${tile.meaning}</span>
+    </button>`;
+};
+
+/**
+ * Render the tiles of the three groups of species, computed from the site's data.
+ * @param {TaxonRow[]} taxaRows - All taxa
+ * @param {Object<String, String>} statusById - The reporting status of each taxon, by id
+ * @param {String|null} selectedStatus - The selected group, if any
+ * @return {String} The markup of the tiles
+ */
+howe.atlas.tilesMarkup = function (taxaRows, statusById, selectedStatus) {
+    return howe.atlas.tiles.map(tile => howe.atlas.renderTile(tile, howe.atlas.taxaOfStatus(taxaRows, statusById, tile.status),
+        tile.status === selectedStatus)).join("");
+};
+
+howe.atlas.sectionInserts = tiles => ({"howe-status-tiles": tiles});
+
+/**
+ * Select the group of a tile clicked in the atlas's section, or clear it if it is already selected.
+ * @param {howe.story} storyPage - The story page
+ * @param {Event} event - The click
+ */
+howe.atlas.paneClick = function (storyPage, event) {
+    const tile = event.target.closest(".howe-status-link");
+    if (tile) {
+        const status = tile.dataset.status;
+        storyPage.selectedStatus = storyPage.selectedStatus === status ? null : status;
+    }
+};
+
+/**
+ * Group the dated records by taxon.
+ * @param {Object[]} obsRows - All records
+ * @return {Map<String, Object[]>} The dated records of each taxon, by id
+ */
+howe.atlas.groupRecords = function (obsRows) {
+    const byTaxon = new Map();
+    obsRows.forEach(obs => {
+        if (obs.eventDate) {
+            const records = byTaxon.get(obs.iNaturalistTaxonId) || [];
+            records.push(obs);
+            byTaxon.set(obs.iNaturalistTaxonId, records);
+        }
+    });
+    return byTaxon;
+};
+
+/** The species of the Community Science pane, which open on the atlas - as the W̱SÁNEĆ/Saanich Peninsula's do **/
+
+fluid.registerNamespace("howe.inatSpecies");
+
+// The query of the Community Science pane's panels - its place and taxon, see paneOverrides in howe-story.vue
+howe.inatSpecies.query = {placeId: 121270, taxonId: 211194};
+howe.inatSpecies.lookup = null;
+
+/**
+ * Look up the iNaturalist taxa of the species shown by the Community Science pane's panels, which name each by its
+ * common name alone, by the same query the panels make. Made once, on the first click.
+ * @param {Window} window - The window holding the story page
+ * @return {Promise<Map<String, Object>>} Map of lower-cased common name to the taxon's `id` and scientific `name`
+ */
+howe.inatSpecies.byName = function (window) {
+    if (!howe.inatSpecies.lookup) {
+        const {placeId, taxonId} = howe.inatSpecies.query;
+        howe.inatSpecies.lookup = window.fetch(`https://api.inaturalist.org/v1/observations/species_counts?verifiable=true&place_id=${placeId}&taxon_id=${taxonId}&per_page=500`)
+            .then(response => response.json())
+            .then(data => new Map(data.results.filter(result => result.taxon.preferred_common_name)
+                .map(result => [result.taxon.preferred_common_name.toLowerCase(), {id: String(result.taxon.id), name: result.taxon.name}])));
+    }
+    return howe.inatSpecies.lookup;
+};
+
+/**
+ * Find the atlas's taxon for a species of iNaturalist - the same taxon, or else the atlas's taxon of that scientific name
+ * or one beneath it.
+ * @param {Object<String, TaxonRow>} rowById - The atlas's taxa
+ * @param {Object} taxon - The iNaturalist taxon, with its `id` and scientific `name`
+ * @return {TaxonRow|undefined} The atlas's taxon, preferring one of its summary
+ */
+howe.inatSpecies.atlasRow = function (rowById, taxon) {
+    if (rowById[taxon.id]) {
+        return rowById[taxon.id];
+    }
+    const named = Object.values(rowById).filter(row => {
+        const scientific = row.scientificName || "";
+        return scientific === taxon.name || scientific.startsWith(taxon.name + " ");
+    });
+    return named.find(row => row.inSummary) || named[0];
+};
+
+/**
+ * Open the atlas on the species of a card of the Community Science pane, if it is one of the atlas's taxa. The plant is
+ * kept as the pane changes, which would otherwise clear it - see howe.story.clearTaxonOnPaneChange.
+ * @param {howe.story} storyPage - The story page
+ * @param {HTMLElement} card - The card clicked
+ * @param {Window} window - The window holding the story page
+ */
+howe.inatSpecies.open = function (storyPage, card, window) {
+    const name = card.querySelector(".inat-observation-label-title")?.textContent.trim().toLowerCase();
+    if (name) {
+        howe.inatSpecies.byName(window).then(byName => {
+            const taxon = byName.get(name);
+            const row = taxon && howe.inatSpecies.atlasRow(storyPage.taxa.rowById, taxon);
+            if (row) {
+                bioreportr.storyPage.keepTaxon.add(storyPage);
+                window.location.hash = "pane:Status&taxon:" + row.id;
+            }
+        }, error => console.error("Could not look up the species of the Community Science pane", error));
+    }
+};
+
+/**
+ * Whether a card of the Community Science pane stands for a species, as do those of its "Most common" tab, rather than
+ * an observation.
+ * @param {Element} card - The card
+ * @return {Boolean} `true` if the card is shown under the "Most common" tab
+ */
+howe.inatSpecies.isSpeciesCard = function (card) {
+    const tab = [...card.closest(".mxcw-inat-components").querySelectorAll("li")].find(item => /selected/.test(item.className));
+    return !!tab && tab.textContent.trim() === "Most common";
+};
+
+// The story pages whose Community Science cards already open their species
+howe.inatSpecies.bound = new WeakSet();
+
+/**
+ * Listen for clicks on the cards of the Community Science pane, which the iNaturalist panels render outside the story
+ * page's own handling of clicks in its panes. Only the cards of "Most common" are species, which open the atlas - those
+ * of "Recent" and "Most favourited" are observations, whose own handler opens them on iNaturalist.
+ * @param {howe.story} storyPage - The story page
+ * @param {Window} window - The window holding the story page
+ */
+howe.inatSpecies.bind = function (storyPage, window) {
+    if (!howe.inatSpecies.bound.has(storyPage)) {
+        howe.inatSpecies.bound.add(storyPage);
+        // Caught as it descends, before the card's own handler
+        window.document.addEventListener("click", event => {
+            const card = event.target.closest?.(".mxcw-inat-components article");
+            if (card && howe.inatSpecies.isSpeciesCard(card)) {
+                event.preventDefault();
+                event.stopPropagation();
+                howe.inatSpecies.open(storyPage, card, window);
+            }
+        }, true);
+    }
+};
+
+/** Summaries of the groups of species, shown on hovering over a tile or a row of the map's legend **/
+
+fluid.registerNamespace("howe.statusTooltip");
+
+howe.statusTooltip.frame = (name, count, body) =>
+    `<div class="mxcw-tip-title">${name} <span>${bioreportr.formatCount(count)} species</span></div>${body}`;
+
+howe.firstRecorder = record => (record.recordedBy || "Unknown").split(";")[0].trim() || "Unknown";
+
+// The five recorders to whom the most of a list of records are owed
+howe.statusTooltip.topRecorders = function (records) {
+    const counts = {};
+    records.forEach(record => {
+        const recorder = howe.firstRecorder(record);
+        counts[recorder] = (counts[recorder] || 0) + 1;
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+};
+
+howe.statusTooltip.isRecent = record => parseInt(record.eventDate, 10) >= howe.atlas.recentYear;
+
+howe.statusTooltip.renderers = {
+    // When each historically reported species was first found again in recent searches, and who found the most of them
+    confirmed: function (taxa, byTaxon) {
+        const refound = taxa.map(taxon => (byTaxon.get(taxon.id) || []).slice().sort(bioreportr.obsDateComparator)
+            .find(howe.statusTooltip.isRecent)).filter(record => record);
+        return howe.statusTooltip.frame("Confirmed", taxa.length,
+            bioreportr.tip.heading("Observers who found the most species again") + bioreportr.tip.bars(howe.statusTooltip.topRecorders(refound)));
+    },
+    // Each species' first record, among those made in recent years
+    new: function (taxa, byTaxon) {
+        const firsts = taxa.map(taxon => (byTaxon.get(taxon.id) || []).slice().sort(bioreportr.obsDateComparator)[0])
+            .filter(record => record && howe.statusTooltip.isRecent(record));
+        return howe.statusTooltip.frame("Newly reported", taxa.length,
+            bioreportr.tip.heading(`Observers with most added records since ${howe.atlas.recentYear}`) + bioreportr.tip.bars(howe.statusTooltip.topRecorders(firsts)));
+    },
+    unconfirmed: function (taxa, byTaxon) {
+        const records = taxa.map(taxon => (byTaxon.get(taxon.id) || []).slice().sort(bioreportr.obsDateComparator)).filter(list => list.length > 0);
+        const withLocality = records.filter(list => list.some(record => record.locality)).length;
+        const withSpecimen = records.filter(list => list.some(record => /specimen/i.test(record.basisOfRecord))).length;
+        return howe.statusTooltip.frame("Historical", taxa.length,
+            bioreportr.tip.heading("Last recorded by") + bioreportr.tip.bars(howe.statusTooltip.topRecorders(records.map(list => fluid.peek(list)))) +
+            `<div class="mxcw-tip-note">${withLocality} species have a recorded locality to search, and ${withSpecimen} have a specimen to consult.</div>`);
+    }
+};
+
+/**
+ * Render the summary of a group of species. Each summary is rendered once, since it depends only on the site's data.
+ * @param {TaxonRow[]} taxaRows - All taxa
+ * @param {Object<String, String>} statusById - The reporting status of each taxon, by id
+ * @param {Map<String, Object[]>} byTaxon - Dated records indexed by taxon id
+ * @param {Object<String, String>} cache - The summaries already rendered, by status
+ * @param {String} status - The group's reporting status
+ * @return {String|null} The summary's markup, or null if there is no such group
+ */
+howe.statusTooltip.render = function (taxaRows, statusById, byTaxon, cache, status) {
+    const renderer = howe.statusTooltip.renderers[status];
+    if (renderer && !cache[status]) {
+        cache[status] = `<div class="howe-tip howe-tip-visible" style="--tip-colour:${bioreportr.statusColours[status]}">` +
+            renderer(howe.atlas.taxaOfStatus(taxaRows, statusById, status), byTaxon) + "</div>";
+    }
+    return cache[status] || null;
+};
+
+howe.statusTooltip.makeCache = () => ({});
+
+/**
+ * Find which group of species an element in the page refers to, if any - a tile of the atlas or a row of the legend
+ * of a map coloured by status.
+ * @param {Element} element - The element under the pointer
+ * @return {String|null} The group's reporting status, or null if there is none
+ */
+howe.statusTooltip.statusFor = function (element) {
+    const link = element.closest?.(".howe-status-link");
+    const row = element.closest?.(".mxcw-map .mxcw-region-legend [data-selects=\"status\"]");
+    return link ? link.dataset.status : row ? row.dataset.key : null;
+};
+
+/**
+ * Report the group of species under the pointer to the tooltip. The listeners are bound to the document, since the
+ * tiles and the legend are rerendered beneath them.
+ * @param {fluid.component} that - The tooltip, a hortis.withTooltip
+ * @param {Document} dokkument - The document
+ * @return {Object} A record of the listeners, to be supplied to `howe.statusTooltip.unbind`
+ */
+howe.statusTooltip.bind = function (that, dokkument) {
+    const move = event => that.hoverAt(howe.statusTooltip.statusFor(event.target), event);
+    const leave = event => {
+        if (!event.relatedTarget || !howe.statusTooltip.statusFor(event.relatedTarget)) {
+            that.hoverAt(null);
+        }
+    };
+    dokkument.addEventListener("mousemove", move);
+    dokkument.addEventListener("mouseout", leave);
+    return {dokkument, move, leave};
+};
+
+howe.statusTooltip.unbind = function (record) {
+    record.dokkument.removeEventListener("mousemove", record.move);
+    record.dokkument.removeEventListener("mouseout", record.leave);
+};
 
 /**
  * Resolve the taxon chosen in the checklist's search, whose state held in the URL records only its id.
@@ -423,5 +752,155 @@ howe.atlas.notesMarkup = function (taxon, records, historyById, sources, byTaxon
 .howe-history-slot:first-child .howe-history-label {
     left: 0;
     transform: none;
+}
+
+/* The atlas's tiles of its three groups of species, their summaries, and its directions - as the W̱SÁNEĆ/Saanich
+   Peninsula's atlas has them */
+/* ── Atlas links to status groups ────────────────────────── */
+
+.howe-status-link {
+    font-weight: 700;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0 4px;
+    margin-left: -4px;
+}
+
+.howe-status-link:hover,
+.howe-status-link:focus-visible {
+    text-decoration-style: solid;
+}
+
+.howe-status-link[aria-pressed="true"] {
+    color: #0d3040;
+    background: #FDF2CE;
+    text-decoration: none;
+}
+
+/* ── Group summaries in the atlas ────────────────────────── */
+
+.howe-tip {
+    position: fixed;
+    z-index: 1000;
+    width: 300px;
+    padding: 12px;
+    display: none;
+    pointer-events: none;
+    color: #eefaff;
+    background: #0d3040;
+    border: 1px solid #4a9aaa;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.howe-tip-visible {
+    display: block;
+}
+
+/* The group summaries are framed as the summaries of map cells are - see imerss-story.css */
+.imerss-tooltip-holder:has(.howe-tip) {
+    max-width: none;
+    padding: 0;
+    border: 1px solid #4a9aaa;
+    border-radius: 8px;
+    background: #0d3040;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* The group summaries are placed by the IMERSS framework's tooltip holder, which supplies the frame */
+.imerss-tooltip-holder .howe-tip {
+    position: static;
+    border: 0;
+    box-shadow: none;
+}
+
+/* ── Atlas tiles for the three groups of species ─────────── */
+
+.howe-status-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: var(--story-gap);
+    margin: 0 0 0.6em;
+}
+
+.howe-status-tile {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin: 0;
+    padding: var(--story-gap);
+    text-align: left;
+    font-weight: 400;
+    color: #eefaff;
+    text-decoration: none;
+    background: #0d3040;
+    border-top: 3px solid var(--tip-colour);
+    border-radius: var(--data-table-radius);
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+}
+
+.howe-status-tile:hover,
+.howe-status-tile:focus-visible,
+.howe-status-tile[aria-pressed="true"] {
+    color: #eefaff;
+    background: #0d3040;
+    outline-color: #FDF2CE;
+}
+
+.howe-tile-name {
+    font-size: var(--story-data);
+    font-weight: 700;
+}
+
+.howe-tile-count {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.howe-tile-count small {
+    font-size: var(--story-small);
+    font-weight: 400;
+    color: #a8c8d0;
+}
+
+.howe-tile-meaning {
+    flex: 1;
+    font-size: var(--story-small);
+    line-height: 1.3;
+    color: #a8c8d0;
+    margin-top: 2px;
+}
+
+.howe-howto {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(168, 200, 208, 0.35);
+    color: #c4dbe2;
+    font-size: var(--story-body);
+    line-height: 1.45;
+}
+
+.howe-howto p,
+.howe-howto ol {
+    margin: 0 0 var(--story-gap);
+}
+
+.howe-howto ol {
+    padding-left: 1.5em;
+}
+
+.howe-howto li {
+    margin-bottom: 4px;
+}
+
+.howe-howto em,
+.howe-howto strong {
+    color: #FDF2CE;
 }
 </style>

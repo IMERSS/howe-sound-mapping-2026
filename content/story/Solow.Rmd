@@ -7,55 +7,32 @@ knit: (function(input, ...) { source(here::here("R/knit_render.R"), local = TRUE
 
 ## Finding the lost plants
 
-[Simon et al., 2025](https://nph.onlinelibrary.wiley.com/doi/full/10.1002/ppp3.70130)
+Every plant in this list is a search waiting to happen. This tool suggests where to begin from the pattern of past
+sightings alone, applying one component of our
+[protocol for detecting local extinction](https://imerss.github.io/detecting-local-extinction/docs/assessing_extirpation_risk/)
+([Simon et al., 2025](https://nph.onlinelibrary.wiley.com/doi/full/10.1002/ppp3.70130)).
 
-|   |   |
-|---|---|
-|PP = Solow probability of presence| Baseline year = 1897|
-|EP = Solow probability of extirpation (1 - PP) | Analysis year = 2024|
+:::: {.howe-howto}
+**Extirpation probability (EP)** runs from 0 (likely still present) to 1 (likely lost locally). Using
+[Solow's (1993)](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1940821) method, it compares when a species was
+sighted with the whole period of record, from the region's first collections in 1897 to 2024. EP is highest for
+plants that were recorded repeatedly and then stopped being seen. Plants recorded only once or twice tend to score
+nearer the middle, since so few records say little either way.
 
-```{=html}
-<br>
-<svg width="100%" viewBox="0 0 1700 300" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
-  <rect x="0" y="0" width="1700" height="300" fill="#0c2c36"/>
+**Five steps to a target species:**
 
-  <g fill="#4e7389">
-    <circle cx="140" cy="110" r="42"/>
-    <circle cx="480" cy="110" r="42"/>
-    <circle cx="820" cy="110" r="42"/>
-    <circle cx="1160" cy="110" r="42"/>
-    <circle cx="1500" cy="110" r="42"/>
-  </g>
+1. **Choose a plant.** The table lists the highest EP first. Tick a species, and use *Filters* to narrow the list, for
+   example to native species.
+2. **See where it grew.** Each circle on the map is a group of sightings treated as one population, coloured by its EP.
+   Hover over one for its *Cluster EP*. A smaller *Population radius* can reveal sites where a plant has gone unseen
+   even though it persists elsewhere. A ⚠ marks plants with records that have no coordinates and so cannot be mapped.
+3. **Read its history.** Open *Records* to see who found it, when and where. The dates show what time of year it was
+   collected.
+4. **Go looking.** Search the places and habitats where it was last recorded, at the season it was last seen.
+5. **Share what you find.** Post your photos to iNaturalist through the
+   [Átl’ḵa7tsem/Howe Sound Biosphere Region](https://www.inaturalist.org/projects/atl-ka7tsem-howe-sound-biosphere-region)
+   project. Whatever you find, the search itself adds to what we know.
 
-  <g fill="#ffffff" font-size="40" font-weight="bold" text-anchor="middle" dominant-baseline="central">
-    <text x="140" y="112">1</text>
-    <text x="480" y="112">2</text>
-    <text x="820" y="112">3</text>
-    <text x="1160" y="112">4</text>
-    <text x="1500" y="112">5</text>
-  </g>
-
-  <g stroke="#5d7e93" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <line x1="204" y1="110" x2="410" y2="110"/>
-    <path d="M394 90 L416 110 L394 130"/>
-    <line x1="544" y1="110" x2="750" y2="110"/>
-    <path d="M734 90 L756 110 L734 130"/>
-    <line x1="884" y1="110" x2="1090" y2="110"/>
-    <path d="M1074 90 L1096 110 L1074 130"/>
-    <line x1="1224" y1="110" x2="1430" y2="110"/>
-    <path d="M1414 90 L1436 110 L1414 130"/>
-  </g>
-
-  <g fill="#ffffff" font-size="33" text-anchor="middle">
-    <text x="140" y="200">Filter taxa</text>
-    <text x="480" y="200">Explore the table</text>
-    <text x="820" y="200">Select a taxon</text>
-    <text x="820" y="238">from the table</text>
-    <text x="1160" y="200">Define the population</text>
-    <text x="1160" y="238">radius</text>
-    <text x="1500" y="200">Explore</text>
-    <text x="1500" y="238">population-specific</text>
-    <text x="1500" y="276">EP on map</text>
-  </g>
-</svg>
-```
+**A high EP is a reason to go looking, not proof of loss.** It does not account for where or how hard people have
+searched, or for suitable habitat, which the full protocol goes on to weigh.
+::::

@@ -26,14 +26,15 @@ protected.area.summaries
 protected.area.bars
 ```
 
-This preliminary evaluation is limited by biases in sampling effort and other gaps in the data, but it is a starting
-point for a more thorough assessment of progress toward conserving the region's plant diversity. Help improve it by
-reporting your observations to the
+This is a preliminary assessment. Sampling effort is uneven across the region and the records have gaps, but it
+offers a starting point for tracking how well the region's plant diversity is protected. You can help improve it by
+sharing your observations with the
 [Átl’ḵa7tsem/Howe Sound Biosphere Region iNaturalist project](https://www.inaturalist.org/projects/atl-ka7tsem-howe-sound-biosphere-region).
 
-The map shows protected and conserved areas by category. Click an area on the map, or in the chart below it, to show
-only the plants recorded there and its summary above, or a category in the map's legend or the chart to show those
-recorded in all its areas. Choose *Unprotected native plant diversity* in the chart to show, as a grid on the map,
-where the native plants not yet reported in any protected area have been recorded.
+The map shows protected and conserved areas by category. Click an area on the map or in the chart to see the plants
+recorded there, or a category in the legend or the chart to see those recorded across all its areas. Choose
+*Unprotected native plant diversity* to see where the native plants not yet found in any protected area have been
+recorded.
+
 Protected areas are from the [Canadian Protected and Conserved Areas Database](https://www.canada.ca/en/environment-climate-change/services/national-wildlife-areas/protected-conserved-areas-database.html)
 (Environment and Climate Change Canada).

@@ -13,7 +13,7 @@
 
 <title>Finding the lost plants</title>
 
-<script src="content_lib/header-attrs-2.25/header-attrs.js"></script>
+<script src="content_lib/header-attrs-2.30/header-attrs.js"></script>
 <script src="content_lib/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="content_lib/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
@@ -165,66 +165,51 @@ pre code {
 </div>
 
 
-<div id="extirpation-risk" class="section level2">
+<div id="finding-the-lost-plants" class="section level2">
 <h2>Finding the lost plants</h2>
-<p><a
+<p>Every plant in this list is a search waiting to happen. This tool
+suggests where to begin from the pattern of past sightings alone,
+applying one component of our <a
+href="https://imerss.github.io/detecting-local-extinction/docs/assessing_extirpation_risk/">protocol
+for detecting local extinction</a> (<a
 href="https://nph.onlinelibrary.wiley.com/doi/full/10.1002/ppp3.70130">Simon
-et al., 2025</a></p>
-<table>
-<tbody>
-<tr class="odd">
-<td>PP = Solow probability of presence</td>
-<td>Baseline year = 1897</td>
-</tr>
-<tr class="even">
-<td>EP = Solow probability of extirpation (1 - PP)</td>
-<td>Analysis year = 2024</td>
-</tr>
-</tbody>
-</table>
-<br>
-<svg width="100%" viewBox="0 0 1700 300" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
-  <rect x="0" y="0" width="1700" height="300" fill="#0c2c36"/>
-
-  <g fill="#4e7389">
-    <circle cx="140" cy="110" r="42"/>
-    <circle cx="480" cy="110" r="42"/>
-    <circle cx="820" cy="110" r="42"/>
-    <circle cx="1160" cy="110" r="42"/>
-    <circle cx="1500" cy="110" r="42"/>
-  </g>
-
-  <g fill="#ffffff" font-size="40" font-weight="bold" text-anchor="middle" dominant-baseline="central">
-    <text x="140" y="112">1</text>
-    <text x="480" y="112">2</text>
-    <text x="820" y="112">3</text>
-    <text x="1160" y="112">4</text>
-    <text x="1500" y="112">5</text>
-  </g>
-
-  <g stroke="#5d7e93" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <line x1="204" y1="110" x2="410" y2="110"/>
-    <path d="M394 90 L416 110 L394 130"/>
-    <line x1="544" y1="110" x2="750" y2="110"/>
-    <path d="M734 90 L756 110 L734 130"/>
-    <line x1="884" y1="110" x2="1090" y2="110"/>
-    <path d="M1074 90 L1096 110 L1074 130"/>
-    <line x1="1224" y1="110" x2="1430" y2="110"/>
-    <path d="M1414 90 L1436 110 L1414 130"/>
-  </g>
-
-  <g fill="#ffffff" font-size="33" text-anchor="middle">
-    <text x="140" y="200">Filter taxa</text>
-    <text x="480" y="200">Explore the table</text>
-    <text x="820" y="200">Select a taxon</text>
-    <text x="820" y="238">from the table</text>
-    <text x="1160" y="200">Define the population</text>
-    <text x="1160" y="238">radius</text>
-    <text x="1500" y="200">Explore</text>
-    <text x="1500" y="238">population-specific</text>
-    <text x="1500" y="276">EP on map</text>
-  </g>
-</svg>
+et al., 2025</a>).</p>
+<div class="howe-howto">
+<p><strong>Extirpation probability (EP)</strong> runs from 0 (likely
+still present) to 1 (likely lost locally). Using <a
+href="https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1940821">Solow’s
+(1993)</a> method, it compares when a species was sighted with the whole
+period of record, from the region’s first collections in 1897 to 2024.
+EP is highest for plants that were recorded repeatedly and then stopped
+being seen. Plants recorded only once or twice tend to score nearer the
+middle, since so few records say little either way.</p>
+<p><strong>Five steps to a target species:</strong></p>
+<ol style="list-style-type: decimal">
+<li><strong>Choose a plant.</strong> The table lists the highest EP
+first. Tick a species, and use <em>Filters</em> to narrow the list, for
+example to native species.</li>
+<li><strong>See where it grew.</strong> Each circle on the map is a
+group of sightings treated as one population, coloured by its EP. Hover
+over one for its <em>Cluster EP</em>. A smaller <em>Population
+radius</em> can reveal sites where a plant has gone unseen even though
+it persists elsewhere. A ⚠ marks plants with records that have no
+coordinates and so cannot be mapped.</li>
+<li><strong>Read its history.</strong> Open <em>Records</em> to see who
+found it, when and where. The dates show what time of year it was
+collected.</li>
+<li><strong>Go looking.</strong> Search the places and habitats where it
+was last recorded, at the season it was last seen.</li>
+<li><strong>Share what you find.</strong> Post your photos to
+iNaturalist through the <a
+href="https://www.inaturalist.org/projects/atl-ka7tsem-howe-sound-biosphere-region">Átl’ḵa7tsem/Howe
+Sound Biosphere Region</a> project. Whatever you find, the search itself
+adds to what we know.</li>
+</ol>
+<p><strong>A high EP is a reason to go looking, not proof of
+loss.</strong> It does not account for where or how hard people have
+searched, or for suitable habitat, which the full protocol goes on to
+weigh.</p>
+</div>
 </div>
 
 
