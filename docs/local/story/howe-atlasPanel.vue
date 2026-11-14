@@ -35,6 +35,12 @@ fluid.def("howe.atlasPanel", {
     atlasTiles: "$compute:howe.atlas.tilesMarkup({self}.taxa.allRows, {self}.statusById, {self}.selectedStatus)",
     sectionInserts: "$compute:howe.atlas.sectionInserts({self}.atlasTiles)",
     paneClick: "$method:howe.atlas.paneClick({self}, {0}:event)",
+    // The checklist shows each species' reporting status by an icon - see howe.atlas.checklistDecoration
+    checklist: {
+        $component: {
+            decorate: "howe.atlas.checklistDecoration"
+        }
+    },
     // The species of the Community Science pane open on the atlas - see howe.inatSpecies
     inatSpeciesClick: "$effect:howe.inatSpecies.bind({self}, {global})",
     // The dated records of each taxon, from which the groups' summaries are drawn
@@ -81,6 +87,23 @@ howe.atlas.fitToTaxon = function (map, taxon, obsRows, duration, activePaneKey) 
 
 // The dated records of a plant, as the panel charts them
 howe.atlas.dated = records => records.filter(record => record.eventDate);
+
+/**
+ * Decorate a checklist row with an icon of its taxon's reporting status, as hortis.blitzChecklistDecoration does, but
+ * referring to the icons by the ids the story page gives them, which carry the prefix `imerss-i-` - as the
+ * W̱SÁNEĆ/Saanich Peninsula's saanich.checklistDecoration does. Without it the icons refer to symbols which don't
+ * exist, and show nothing.
+ * @param {TaxonRow} row - The checklist's taxon row
+ * @return {VNode|null} The icon, or null if the taxon has no reporting status
+ */
+howe.atlas.checklistDecoration = function (row) {
+    const node = hortis.blitzChecklistDecoration(row);
+    const use = node?.children.find(child => child.tag === "use");
+    if (use && !use.attrs.href.startsWith("#imerss-i-")) {
+        use.attrs.href = "#imerss-i-" + use.attrs.href.substring(1);
+    }
+    return node;
+};
 
 /** The atlas's tiles of the three groups of species **/
 
