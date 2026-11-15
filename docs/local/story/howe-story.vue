@@ -1,18 +1,24 @@
 <fluid-import src="../../bioreportr/sfc/bioreportr-storyPage.vue"></fluid-import>
-<fluid-import src="howe-atlasPanel.vue"></fluid-import>
-<!-- The opening panes, In Memoriam and Lost Plants - see the front matter of content/story/Traces.Rmd and LostPlants.Rmd -->
-<fluid-import src="howe-tracesPane.vue"></fluid-import>
-<fluid-import src="howe-lostPlantsPane.vue"></fluid-import>
+<!-- The story's data files, as its bioreportr.yaml names them - written by src/js/storyBuild.js -->
+<fluid-import src="../../story/bioreportr-storyData.vue"></fluid-import>
+<!-- The atlas's panel, tiles and tooltips, and the panes shared with the other bioReportR stories - In Memoriam, Lost
+     Plants and Protected Areas - each rendering its section from its own template, see paneComponent in the front
+     matter of content/story/Traces.Rmd, LostPlants.Rmd and Protected.Rmd -->
+<fluid-import src="../../bioreportr/sfc/bioreportr-atlasPanel.vue"></fluid-import>
+<fluid-import src="../../bioreportr/sfc/bioreportr-storyPageTraces.vue"></fluid-import>
+<fluid-import src="../../bioreportr/sfc/bioreportr-storyPageLostPlants.vue"></fluid-import>
+<fluid-import src="../../bioreportr/sfc/bioreportr-storyPageProtectedAreas.vue"></fluid-import>
 <!-- The Regional Diversity pane, whose biogeoclimatic units are listed as chips - see content/story/Vascular_BEC.Rmd -->
 <fluid-import src="howe-becPane.vue"></fluid-import>
-<fluid-import src="howe-protectedPane.vue"></fluid-import>
 <!-- The iNaturalist panels of the Top Contributions pane -->
 <script src="%@imerss/inat-components/dist/standalone.min.js" fluid-client data-fl-scope="global"></script>
 <script>
 "use strict";
 
-// The story page of the Átl’ḵa7tsem/Howe Sound vascular plant report. Its paths are relative to the story page,
-// served at /story/, whose panes are written by src/js/storyBuild.js into static/story
+// The story page of the Átl’ḵa7tsem/Howe Sound vascular plant report. Its atlas and the panes it shares with the other
+// bioReportR stories are layers of the story page defined in static/bioreportr/sfc, given this story's settings here.
+// Its paths are relative to the story page, served at /story/, whose panes are written by src/js/storyBuild.js into
+// static/story
 // noinspection ES6ConvertVarToLetConst // otherwise this is a duplicate on minifying
 var howe = fluid.registerNamespace("howe");
 fluid.registerNamespace("howe.story");
@@ -27,63 +33,28 @@ howe.story.inverseWeibullCount = (x, maxCount) => maxCount < 200 ? x : 0.012 * M
 // of all its records, set in scripts/Historical_analysis_mapbox.R, so that it holds still as the years advance
 howe.story.followRecords = activePaneKey => activePaneKey !== "History";
 
+/**
+ * Whether a record is a sighting of its plant - all but the species list of the 2020 UNESCO nomination of the biosphere
+ * region, entered as pseudo-records all dated 2020-07-01 at one place. They remain among the records shown, but are not
+ * sightings: they count neither towards extirpation probability nor towards the history of a plant's records - as
+ * scripts/rebuild_howe_ultimate_list.py leaves them out of the EP of the summary.
+ * @param {Object} record - A record
+ * @return {Boolean} `false` if the record is one of the nomination's species list
+ */
+howe.story.isSighting = record => !/UNESCO Nomination/.test(record.datasetName || "");
+
 fluid.def("howe.story", {
-    $layers: ["bioreportr.storyPage", "howe.atlasPanel"],
-    obsFile: "../local/data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv",
-    obsPlaceholderFile: "../local/data/tabular/placeholder/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv",
-    taxaFile: "../local/data/tabular/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv",
-    taxaPlaceholderFile: "../local/data/tabular/placeholder/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv",
-    regionIndirectionFile: "../local/data/tabular/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-regionIndirection.csv",
-    regionIndirectionPlaceholderFile: "../local/data/tabular/placeholder/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-regionIndirection.csv",
+    $layers: ["bioreportr.storyPage", "bioreportr.storyData", "bioreportr.atlasPanel", "bioreportr.storyPageTraces", "bioreportr.storyPageLostPlants",
+        "bioreportr.storyPageProtectedAreas"],
+    // The 2020 UNESCO nomination's species list is not a sighting - see howe.story.isSighting
+    isSighting: "$method:howe.story.isSighting({0}:record)",
+    // The species of the Community Science pane, which open on the atlas, are those of the place and taxon of its panels
+    // - see paneOverrides below
+    inatSpeciesQuery: {place_id: 121270, taxon_id: 211194},
     gridResolution: 1000,
     // The regions which may filter the records - a category of protected area is matched through rows of the region
     // index giving each area the label of its category, see GroupField in scripts/intersectShapes.R
     regionFilterFieldNames: ["BEC", "ProtectedArea", "KBA"],
-    // The Protected Areas pane may also select the native species reported in no protected area, and some of the
-    // species of a region - see howe.protectedAreas.regionFilter
-    regionFilter: {
-        $component: {
-            doFilter: `$method:howe.protectedAreas.regionFilter({0}:obsRows, {1}:filterState, {storyPage}.regionIndirection.rows,
-                {storyPage}.regionFilterFieldNames, {storyPage}.protectedAreas.taxonSets, {storyPage}.activePaneKey)`
-        }
-    },
-    // The panel of the plant chosen in the checklist - the atlas's, see howe-atlasPanel.vue, or on the Protected Areas
-    // pane its smaller one giving the plant's records within the selected region, see howe-protectedPane.vue
-    taxonPanel: {
-        $component: {
-            markup: "$compute:howe.protectedAreas.choosePanel({storyPage}.activePaneKey, {storyPage}.atlasPanelMarkup, {storyPage}.protectedAreas.panelMarkup)"
-        }
-    },
-    taxonPanelVisible: "$compute:howe.protectedAreas.panelVisible({self}.taxonPanel.markup, {self}.activePaneKey)",
-    // The plant chosen in the checklist is cleared on moving to another pane, since a plant carried into it could leave
-    // that pane's own selection with no records - see howe.story.clearTaxonOnPaneChange
-    clearTaxonOnPaneChange: "$effect:howe.story.clearTaxonOnPaneChange({self}, {self}.activePaneKey)",
-    // and likewise on moving between the selections of the Protected Areas pane - its tabs, categories, areas and figures
-    clearTaxonOnRegionChange: "$effect:howe.story.clearTaxonOnRegionChange({self}, {self}.selectedRegion, {self}.activePaneKey)",
-    // The opening pane, in memory of plants: their key moments appear across the map as a timeline plays - see
-    // howe-tracesPane.vue
-    traces: {
-        $component: {
-            $layers: "howe.traces"
-        }
-    },
-    // The gallery of "lost" plants shown beside the Lost Plants pane, in place of the map - see howe-lostPlantsPane.vue
-    lostPlants: {
-        $component: {
-            $layers: "howe.lostPlants"
-        }
-    },
-    paneMarkup: "$compute:howe.paneMarkup({self}.lostPlants.markup)",
-    leftPaneClass: "$compute:howe.traces.leftPaneClass({self}.traces.active, {self}.traces.paused, {self}.traces.scrubbing, false)",
-    // A pane opened from one without a map is placed on its camera once the map has its size - see howe.story.recentre
-    recentre: "$effect:howe.story.recentre({self}.map.readyMap, {self}.mapData, {self}.activePane)",
-    // The Protected Areas pane selects categories from its chart and individual areas from the map, describing each
-    // area on hover - see howe-protectedPane.vue
-    protectedAreas: {
-        $component: {
-            $layers: "howe.protectedAreas"
-        }
-    },
     solowParams: {
         baselineYear: 1897,
         analysisYear: 2024
@@ -144,82 +115,8 @@ fluid.def("howe.story", {
             countTransform: "howe.story.weibullCount",
             inverseCountTransform: "howe.story.inverseWeibullCount",
             // The History pane's map stays on its own view while its slider plays, rather than following each year's records
-            zoomToObsBounds: "$compute:howe.story.followRecords({storyPage}.activePaneKey)",
-            // The Protected Areas pane shows the grid of the native species outside protected areas when they are selected
-            gridVisible: "{storyPage}.protectedAreas.gridVisible",
-            // A selection of some of the species of a region, made by the figures of the Protected Areas pane, outlines
-            // and marks the region itself
-            highlightRegion: "$effect:bioreportr.storyMap.highlightRegion({self}.readyMap, {storyPage}.protectedAreas.baseRegion, {storyPage}.mapData)",
-            legendRowsMarkup: "$compute:bioreportr.storyMap.legendMarkup({self}.legendRows, {storyPage}.selectedStatus, {storyPage}.protectedAreas.baseRegion)"
+            zoomToObsBounds: "$compute:howe.story.followRecords({storyPage}.activePaneKey)"
         }
     }
 });
-
-// Whether the map was shown by the previous pane, by map
-howe.story.mapWasShown = new WeakMap();
-
-/**
- * Place the map on the active pane's camera again once it has its full size, when the previous pane hid it - e.g. on
- * moving from Lost Plants to In Memoriam - as the W̱SÁNEĆ/Saanich Peninsula's saanich.recentre does. The story page
- * moves the camera as the pane opens, when the map is still without size, which leaves it centred in the wrong place
- * once the map has grown.
- * @param {maplibregl.Map} map - The story's map, once ready
- * @param {Object} mapData - The story's map data, with each pane's camera
- * @param {Object} activePane - The active pane's settings, with its `paneKey` and `visibleMap`
- */
-howe.story.recentre = function (map, mapData, activePane) {
-    if (!map || !activePane) {
-        return;
-    }
-    const wasShown = howe.story.mapWasShown.get(map);
-    howe.story.mapWasShown.set(map, !!activePane.visibleMap);
-    const camera = mapData?.panes?.[activePane.paneKey];
-    if (wasShown === false && activePane.visibleMap && camera?.center) {
-        hortis.libreMap.afterLayout(map, () => {
-            map.resize();
-            map.jumpTo({center: camera.center, zoom: camera.zoom});
-        });
-    }
-};
-
-// The pane last shown by each story page, so that the plant chosen in it is cleared on moving to another
-howe.story.lastPaneKey = new WeakMap();
-
-/**
- * Clear the plant chosen in the checklist on moving to another pane. A plant carried into another pane may have no
- * records within that pane's selection - e.g. in the History pane's years before it was first recorded, or in a
- * protected area where it has not been found - leaving the map nothing to show. The plant chosen together with a move
- * to the curation pane, by its speech bubble, is kept - see bioreportr.storyPage.keepTaxon.
- * @param {howe.story} storyPage - The story page
- * @param {String} activePaneKey - The key of the pane shown
- */
-howe.story.clearTaxonOnPaneChange = function (storyPage, activePaneKey) {
-    const lastPaneKey = howe.story.lastPaneKey.get(storyPage);
-    howe.story.lastPaneKey.set(storyPage, activePaneKey);
-    if (lastPaneKey !== undefined && lastPaneKey !== activePaneKey && !bioreportr.storyPage.keepTaxon.has(storyPage)) {
-        // Deferred since an effect may not write signals
-        fluid.invokeLater(() => storyPage.checklist.search.reset());
-    }
-};
-
-// The selection last made in the Protected Areas pane by each story page, so that the plant chosen is cleared on making another
-howe.story.lastRegion = new WeakMap();
-
-/**
- * Clear the plant chosen in the checklist on moving between the selections of the Protected Areas pane, since the plant
- * may not have been recorded within the new one.
- * @param {howe.story} storyPage - The story page
- * @param {String|null} selectedRegion - The selection - a tab, category, area or figure of the pane
- * @param {String} activePaneKey - The key of the pane shown
- */
-howe.story.clearTaxonOnRegionChange = function (storyPage, selectedRegion, activePaneKey) {
-    const region = selectedRegion || null;
-    const had = howe.story.lastRegion.has(storyPage);
-    const lastRegion = howe.story.lastRegion.get(storyPage);
-    howe.story.lastRegion.set(storyPage, region);
-    if (activePaneKey === "Protected" && had && lastRegion !== region) {
-        // Deferred since an effect may not write signals
-        fluid.invokeLater(() => storyPage.checklist.search.reset());
-    }
-};
 </script>

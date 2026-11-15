@@ -7,7 +7,7 @@ paneHandlerLayers: ["reknitr.obsMapPaneHandler"]
 regionField: Protected
 visibleGrid: false
 # The component rendering this pane's section, into whose template npm run story writes it - see AGENTS.md
-paneComponent: howe.protectedPane
+paneComponent: bioreportr.protectedPane
 ---
 
 ## Native plant diversity within protected areas
@@ -19,7 +19,7 @@ protectedAreaMap
 ```
 
 ```{r, echo=FALSE}
-# A summary of the selection on the map - all the protected areas, a category or an area - see howe-protectedPane.vue
+# A summary of the selection on the map - all the protected areas, a category or an area - see bioreportr-protectedPane.vue
 protected.area.summaries
 # The chart of species by category, or by area within the selected category, shown beneath the map - see
 # mxcw-data-pane-html in src/js/storyBuild.js

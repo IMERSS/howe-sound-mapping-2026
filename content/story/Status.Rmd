@@ -28,9 +28,9 @@ To date, `r nrow(plant.summary)` vascular plant species have been recorded in th
 Region, drawing together `r format(nrow(plants), big.mark = ",")` records from historical collections, iNaturalist
 observations and other sources. Each species falls into one of three groups:
 
-<div class="howe-status-tiles"></div>
+<div class="mxcw-status-tiles"></div>
 
-:::: {.howe-howto}
+:::: {.mxcw-howto}
 Click a group to show only the records of those species, old and recent, on the map and in the list.
 Open *Filters* to narrow records by recorder, pick a plant from the list to see only its records, or use the shape
 tool at the top left of the map to draw an area, double-clicking to finish. Open *Records* below the map for the

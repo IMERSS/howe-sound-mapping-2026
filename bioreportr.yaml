@@ -1,0 +1,15 @@
+# The project's own data files, named once here for every part of the project which reads them: its R scripts, through
+# scripts/project.R and R/build.R, and its story page, through the layer bioreportr.storyData, which
+# src/js/storyBuild.js ("npm run story") writes from this file into static/story/bioreportr-storyData.vue. Each is a file
+# of tabular_data, from which R/build.R publishes those the story page reads into static/local/data/tabular.
+# This file is the project's own, and is not copied by copyFrameworkOut.sh
+data:
+  # The catalogue as prepared, which scripts/intersectShapes.R labels with the regions its records fall in
+  catalogue: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-orig.csv
+  # The catalogue so labelled, and the index of its regions, written by scripts/intersectShapes.R - both published
+  labels: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv
+  regionIndirection: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-regionIndirection.csv
+  # The summary of the catalogue's taxa, published
+  summary: AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv
+  # The index of the shapes the records are intersected with by scripts/intersectShapes.R - see spatial_data/vectors
+  shapeIndex: "Howe Shapefile Index.csv"

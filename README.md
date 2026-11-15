@@ -156,7 +156,8 @@ this file is
 `regionIndirectionFile` holding a condensed representation of regions which `obsFile` has been intersected with. This file
 can be empty if you are not rendering any regions. If you would like to populate it, you can fill out a shapefile index
 such as [Howe Shapefile Index.csv](tabular_data/Howe Shapefile Index.csv) mapping a set of SHP files and the relevant
-field names, and supply it to [intersectShapes.R](scripts/intersectShapes.R) to intersect these with your catalogue.
+field names, name it with your catalogue in [project.R](scripts/project.R), and run
+[intersectShapes.R](scripts/intersectShapes.R) to intersect these with your catalogue.
 
 `obsFile` and `taxaFile` are prepared using the scripts [prepare_summary.R](scripts/prepare_summary.R),
 [prepare_summary_final.R](scripts/prepare_summary_final.R) and [prepareObs.R](scripts/prepareObs.R),

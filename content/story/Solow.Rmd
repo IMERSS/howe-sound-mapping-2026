@@ -12,7 +12,7 @@ sightings alone, applying one component of our
 [protocol for detecting local extinction](https://imerss.github.io/detecting-local-extinction/docs/assessing_extirpation_risk/)
 ([Simon et al., 2025](https://nph.onlinelibrary.wiley.com/doi/full/10.1002/ppp3.70130)).
 
-:::: {.howe-howto}
+:::: {.mxcw-howto}
 **Extirpation probability (EP)** runs from 0 (likely still present) to 1 (likely lost locally). Using
 [Solow's (1993)](https://esajournals.onlinelibrary.wiley.com/doi/10.2307/1940821) method, it compares when a species was
 sighted with the whole period of record, from the region's first collections in 1897 to 2024. EP is highest for

@@ -4,13 +4,13 @@ shortTitle: Lost Plants
 weight: 2
 knit: (function(input, ...) { source(here::here("R/knit_render.R"), local = TRUE)$value(input, ...) })
 # The component rendering this pane's section, into whose template npm run story writes it - see AGENTS.md
-paneComponent: howe.lostPlantsPane
+paneComponent: bioreportr.lostPlantsPane
 ---
 
 ## The lost plants of Átl’ḵa7tsem/Howe Sound
 
-This gallery shows `<span class="howe-lost-count">@{count}</span>`{=html} native species once reported for the Átl’ḵa7tsem/Howe Sound Biosphere Region, which have not been seen in recent decades. Some may be lost *to us*—overlooked, forgotten, or waiting to be rediscovered. Others may be lost *because of us*, through impacts like habitat change or the introduction of invasive species.
+This gallery shows `<span class="mxcw-lost-count">@{count}</span>`{=html} native species once reported for the Átl’ḵa7tsem/Howe Sound Biosphere Region, which have not been seen in recent decades. Some may be lost *to us*—overlooked, forgotten, or waiting to be rediscovered. Others may be lost *because of us*, through impacts like habitat change or the introduction of invasive species.
 
-<span class="howe-callout">Pick a plant from the gallery</span> to see where and when it was last found, then join local naturalists and community members in searching for it, sharing what you find with the
+<span class="mxcw-callout">Pick a plant from the gallery</span> to see where and when it was last found, then join local naturalists and community members in searching for it, sharing what you find with the
 [Átl’ḵa7tsem/Howe Sound Biosphere Region](https://www.inaturalist.org/projects/atl-ka7tsem-howe-sound-biosphere-region)
 project on iNaturalist.
