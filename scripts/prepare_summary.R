@@ -34,7 +34,24 @@ refound <- rawList$occurrence_status == "reported" & rawList$taxonName %in% sigh
 wg("{sum(refound)} historically reported species found again since 2000 are confirmed: {paste(rawList$taxonName[refound], collapse = ', ')}")
 rawList$occurrence_status[refound] <- "confirmed"
 wg("{sum(rawList$provincial_concern == 'concern')} species of provincial conservation concern")
-reducedList <- rawList %>% select(c("taxonName", "introduction_status", "occurrence_status", "infrataxon_status", "provincial_concern", "provenance_status", "solow_EP", "phylum"))
+# Each taxon's conservation status, shown in its panel on the site as the W̱SÁNEĆ/Saanich Peninsula's are: its provincial
+# rank of the BC Conservation Data Centre, as the list holds it, and from the rankings of adfsimon-bioinfo's synthesis,
+# named in bioreportr-prep.yaml, its BC list, its national status as assessed by COSEWIC and its listing under the Species
+# at Risk Act - each with the year of its assessment, e.g. "Endangered (2004)", "S1: Endangered (2005)"
+source("scripts/project.R")
+rankings <- timedFread(file.path("tabular_data", config$rankings))
+year_of <- function (date) str_extract(as.character(date), "\\d{4}")
+dated <- function (status, date) ifelse(is.na(status) | status %in% c("", "NA"), "",
+  ifelse(is.na(year_of(date)), status, paste0(status, " (", year_of(date), ")")))
+ranking <- rankings[match(rawList$taxonName, rankings$scientificName), ]
+rawList$provincial_status <- rawList$provincial_conservation_status
+rawList$bc_list <- ifelse(is.na(ranking$bc_list) | ranking$bc_list == "NA", "", ranking$bc_list)
+rawList$national_status <- dated(ranking$national_status, ranking$`COSEWIC Date`)
+rawList$sara_status <- ifelse(rawList$national_status == "" | is.na(ranking$SARA_status) | ranking$SARA_status %in% c("", "NA"), "",
+  paste0("S", ranking$`SARA Schedule`, ": ", dated(ranking$SARA_status, ranking$`SARA Date`)))
+
+reducedList <- rawList %>% select(c("taxonName", "introduction_status", "occurrence_status", "infrataxon_status", "provincial_concern", "provenance_status", "solow_EP", "phylum",
+                                    "provincial_status", "bc_list", "national_status", "sara_status"))
 reducedList <- reducedList %>% rename("reportingStatus" = "occurrence_status", "scientificName" = "taxonName")
 
 timedWrite(reducedList, "tabular_data/AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-orig.csv")

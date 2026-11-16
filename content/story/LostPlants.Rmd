@@ -5,12 +5,36 @@ weight: 2
 knit: (function(input, ...) { source(here::here("R/knit_render.R"), local = TRUE)$value(input, ...) })
 # The component rendering this pane's section, into whose template npm run story writes it - see AGENTS.md
 paneComponent: bioreportr.lostPlantsPane
+# Each div of class mxcw-lost-text below is the text of one tab of the gallery, named by its data-gallery - the key of
+# the gallery in bioreportr.lostPlants.galleries. Only the block of the tab chosen is shown, the "lost" block until
+# another is chosen; the others start hidden. This story's review does not track taxa under review, so it has no
+# Under review tab, and no text for one
 ---
 
 ## The lost plants of Átl’ḵa7tsem/Howe Sound
 
+::: {.mxcw-lost-text data-gallery="lost"}
 This gallery shows `<span class="mxcw-lost-count">@{count}</span>`{=html} native species once reported for the Átl’ḵa7tsem/Howe Sound Biosphere Region, which have not been seen in recent decades. Some may be lost *to us*—overlooked, forgotten, or waiting to be rediscovered. Others may be lost *because of us*, through impacts like habitat change or the introduction of invasive species.
 
-<span class="mxcw-callout">Pick a plant from the gallery</span> to see where and when it was last found, then join local naturalists and community members in searching for it, sharing what you find with the
+<span class="mxcw-callout">Pick a plant from the gallery</span> to turn it over and read any curatorial notes on it. From there you can follow it to its records in the Atlas, or add your own notes in Living Data. Then join local naturalists and community members in searching for it, sharing what you find with the
 [Átl’ḵa7tsem/Howe Sound Biosphere Region](https://www.inaturalist.org/projects/atl-ka7tsem-howe-sound-biosphere-region)
 project on iNaturalist.
+:::
+
+::: {.mxcw-lost-text data-gallery="confirmed" hidden="hidden"}
+These native species were known to the region's earlier botanists, and have been **seen again** since 2000. They are the enduring core of its native flora—though being found again is no promise of security, and some now survive in only one or two places.
+
+<span class="mxcw-callout">Pick a plant from the gallery</span> to turn it over and read any curatorial notes on it, then follow it to its records in the Atlas to see where it persists, or add your own notes in Living Data.
+:::
+
+::: {.mxcw-lost-text data-gallery="new" hidden="hidden"}
+These native species were **first reported** for the Átl’ḵa7tsem/Howe Sound Biosphere Region since 2000. Some were surely here all along, overlooked by earlier botanists or confused with their relatives; others may be newly arrived, or newly told apart by taxonomists.
+
+<span class="mxcw-callout">Pick a plant from the gallery</span> to turn it over and read any curatorial notes on it, then follow it to its records in the Atlas, or add your own notes in Living Data.
+:::
+
+::: {.mxcw-lost-text data-gallery="excluded" hidden="hidden"}
+Not every plant reported for the region belongs on its checklist. These taxa are **excluded** from it: on review, most proved to be garden escapes or domesticated plants that persist without establishing, some to have been planted, and a few to have been misreported.
+
+<span class="mxcw-callout">Pick a plant from the gallery</span> to turn it over and read the reason it was set aside. These notes show how the checklist was made, and where it remains open to question.
+:::

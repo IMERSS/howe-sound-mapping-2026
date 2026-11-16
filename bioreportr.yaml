@@ -11,5 +11,9 @@ data:
   regionIndirection: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-regionIndirection.csv
   # The summary of the catalogue's taxa, published
   summary: AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv
+  # The history of the curatorial notes on each taxon, prepared by scripts/prepare_curation_history.R - published
+  curationHistory: AHSBR_Tracheophyta_curation-history_2026-11-15.csv
+  # The taxa set aside from the checklist, prepared by scripts/prepare_excluded_taxa.R - published
+  excludedTaxa: AHSBR_Tracheophyta_excluded-taxa_2026-11-15.csv
   # The index of the shapes the records are intersected with by scripts/intersectShapes.R - see spatial_data/vectors
   shapeIndex: "Howe Shapefile Index.csv"

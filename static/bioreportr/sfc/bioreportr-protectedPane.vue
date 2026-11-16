@@ -31,6 +31,11 @@ fluid.registerNamespace("bioreportr.protectedAreas");
 
 fluid.def("bioreportr.protectedAreas", {
     $layers: "fluid.component",
+    // Whether the pane keeps only the records which can be mapped, leaving out the species known only from records
+    // without a position, e.g. those of lists, which would leave the map nothing to fit when chosen. Named once, as
+    // protectedMappedOnly in the settings of the project's bioreportr.yaml, which scripts/Protected_map_mapbox.R reads
+    // too, so that the pane's summaries agree
+    mappedOnly: "{storyPage}.protectedMappedOnly",
     active: "$compute:bioreportr.storyPage.isActive({storyPage}.activePaneKey, Protected)",
     hover: "$effect:bioreportr.protectedAreas.bindCards({storyPage}, {storyPage}.map.readyMap, {storyPage}.mapData, {global})",
     selects: "$effect:bioreportr.protectedAreas.bindSelects({storyPage}, {global})",
@@ -149,16 +154,18 @@ bioreportr.protectedAreas.uniqueByCategory = function (obsRows, native, indirect
  * Filter the records to the selection: to its region, as bioreportr.regionSelectionFilter does, or to all the
  * protected areas, or to the records of the native species outside them; and then to any subset of its species. The
  * Protected Areas pane assesses the native flora alone, so that while it is shown only the records of native species
- * are kept, and its checklist agrees with the counts of its cards.
+ * are kept - and, if the story's mappedOnly is set, only those which can be mapped - and its checklist agrees with the
+ * counts of its cards.
  * @param {Object[]} obsRows - The records to be filtered
  * @param {String|null} selectedRegion - The selection, if any
  * @param {Object[]} indirectionRows - The rows of the region index
  * @param {String[]} fieldNames - The fields of the records holding regions which may be selected
  * @param {Object<String, Set<String>>} taxonSets - The sets of taxa, see bioreportr.protectedAreas.taxonSets
  * @param {String} activePaneKey - The pane shown
+ * @param {Boolean} [mappedOnly] - Whether the pane keeps only the records which can be mapped
  * @return {Object[]} The records of the selection
  */
-bioreportr.protectedAreas.regionFilter = function (obsRows, selectedRegion, indirectionRows, fieldNames, taxonSets, activePaneKey) {
+bioreportr.protectedAreas.regionFilter = function (obsRows, selectedRegion, indirectionRows, fieldNames, taxonSets, activePaneKey, mappedOnly) {
     const {region, subset} = bioreportr.protectedAreas.parseSelection(selectedRegion);
     const inSet = (rows, set) => rows.filter(row => set.has(String(row.iNaturalistTaxonId)));
     const regionRows = region === bioreportr.protectedAreas.allAreas ? obsRows.filter(row => row.ProtectedArea) :
@@ -166,7 +173,8 @@ bioreportr.protectedAreas.regionFilter = function (obsRows, selectedRegion, indi
             bioreportr.regionSelectionFilter(obsRows, region, indirectionRows, fieldNames);
     const set = subset === "unique" ? taxonSets.unique[region] || new Set() : taxonSets[subset];
     const subsetRows = subset ? inSet(regionRows, set) : regionRows;
-    return activePaneKey === "Protected" ? inSet(subsetRows, taxonSets.native) : subsetRows;
+    const nativeRows = activePaneKey === "Protected" ? inSet(subsetRows, taxonSets.native) : subsetRows;
+    return activePaneKey === "Protected" && mappedOnly ? nativeRows.filter(hortis.libreMap.hasCoords) : nativeRows;
 };
 
 // The map's grid of records, hidden on this pane, shows where the native species outside protected areas grow when
@@ -205,6 +213,7 @@ bioreportr.protectedAreas.panelMarkup = function (taxon, records, region, status
       ${where}
       <dl class="mxcw-taxon-fields">
         ${bioreportr.atlas.field("Status", bioreportr.atlas.statusLabel(taxon.reportingStatus, statusLabels))}
+        ${bioreportr.atlas.statusFields(taxon)}
         <dt>Records:</dt> <dd>${bioreportr.formatCount(records.length)}</dd>
         <dt>First seen:</dt> <dd>${bioreportr.eventDay(records[0].eventDate)}</dd>
         <dt>Last seen:</dt> <dd>${bioreportr.eventDay(fluid.peek(records).eventDate)}</dd>
@@ -968,7 +977,7 @@ bioreportr.protectedAreas.showSelection = function (selectedRegion, baseRegion, 
 </nav>
 <section class="mxcw-pa-card-summary" data-key="" style="--pa-colour: #eefaff">
 <h3 class="mxcw-pa-summary-title">All protected and conserved areas</h3>
-<p class="mxcw-pa-summary-text">Of the 782 native vascular plants known from the region, 569 (73%) have been recorded in at least one protected or conserved area, from provincial parks and ecological reserves to old growth management areas and private conservation lands. The remaining 213 are so far known only from outside them.</p>
+<p class="mxcw-pa-summary-text">Of the 782 native vascular plants known from the region, 569 (73%) have been recorded in at least one protected or conserved area, from provincial parks and ecological reserves to old growth management areas and private conservation lands. The remaining 213 are so far known only from outside protected areas.</p>
 <div class="mxcw-pa-stats">
 <div class="mxcw-pa-stat">
 <b>42</b>

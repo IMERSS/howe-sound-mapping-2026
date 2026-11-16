@@ -231,15 +231,9 @@ bioreportr.atlas.sectionInserts = tiles => ({"mxcw-status-tiles": tiles});
  */
 bioreportr.atlas.paneClick = function (storyPage, event) {
     const tile = event.target.closest(".mxcw-status-link");
-    // A plant of the Lost Plants gallery, if the story has one, opens the extirpation risk pane on it - see
-    // bioreportr-lostPlantsPane.vue
-    const card = event.target.closest(".mxcw-lost-card");
     if (tile) {
         const status = tile.dataset.status;
         storyPage.selectedStatus = storyPage.selectedStatus === status ? null : status;
-    } else if (card) {
-        const dokkument = event.target.ownerDocument;
-        bioreportr.atlas.showSolowTaxon(storyPage, card.dataset.taxonId, "Solow", dokkument, dokkument.defaultView);
     }
 };
 
@@ -531,6 +525,32 @@ bioreportr.atlas.statusLabel = (status, labels) => {
 
 bioreportr.atlas.field = (label, value) => value ? `<dt>${label}:</dt> <dd>${hortis.dataTable.encode(value)}</dd>` : "";
 
+// The provenance of a taxon, as its introduction status - whether it is native to the region or introduced
+bioreportr.atlas.provenanceLabels = {native: "Native", exotic: "Introduced", introduced: "Introduced", unknown: "Unknown"};
+
+/**
+ * Render the fields of a taxon's panel giving its provenance and conservation status - each only if the project's data
+ * holds it: its introduction status, its provincial rank of the BC Conservation Data Centre with its BC list, and its
+ * national status as assessed by COSEWIC and its listing under the Species at Risk Act (SARA).
+ * @param {TaxonRow} taxon - The taxon
+ * @return {String} The markup of the fields
+ */
+bioreportr.atlas.statusFields = function (taxon) {
+    const value = field => {
+        const text = String(taxon[field] ?? "").trim();
+        return text === "" || text === "NA" ? "" : text;
+    };
+    const introduction = value("introduction_status");
+    const provenance = bioreportr.atlas.provenanceLabels[introduction] || introduction;
+    // The BC list is given beside the rank where it says more than the rank does - "Exotic" and "Unknown" do not
+    const bcList = /^(Exotic|Unknown|Accidental|No Status)$/i.test(value("bc_list")) ? "" : value("bc_list");
+    const provincial = [value("provincial_status"), bcList && bcList + " list"].filter(Boolean).join(" · ");
+    return bioreportr.atlas.field("Provenance", provenance) +
+        bioreportr.atlas.field("Provincial status", provincial) +
+        bioreportr.atlas.field("COSEWIC", value("national_status")) +
+        bioreportr.atlas.field("SARA", value("sara_status"));
+};
+
 /**
  * Find the dated sightings of a taxon and of any taxa beneath it, in date order.
  * @param {Object[]} obsRows - All records
@@ -577,6 +597,7 @@ bioreportr.atlas.panelMarkup = function (taxon, records, historyById, sources, b
         <dt>Date last seen:</dt> <dd>${bioreportr.eventDay(fluid.peek(records).eventDate)}</dd>
         <dt>Total records:</dt> <dd>${bioreportr.formatCount(records.length)}</dd>
         ${bioreportr.atlas.field("Status", bioreportr.atlas.statusLabel(taxon.reportingStatus, statusLabels))}
+        ${bioreportr.atlas.statusFields(taxon)}
       ${context === "solow" ? bioreportr.atlas.field("Regional EP", taxon.solow_EP) : ""}
       </dl>
       ${bioreportr.georefNote(records)}

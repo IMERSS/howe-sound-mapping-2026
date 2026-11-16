@@ -15,6 +15,10 @@ origSummary <- timedFread("tabular_data/AHSBR_Tracheophyta_ultimate-merged-summa
 origMatch <- match(assignedSummary$scientificName, origSummary$scientificName)
 assignedSummary$provincial_concern <- origSummary$provincial_concern[origMatch]
 assignedSummary$reportingStatus <- origSummary$reportingStatus[origMatch]
+# And its conservation status - provincial rank, BC list, COSEWIC status and SARA listing
+for (column in c("provincial_status", "bc_list", "national_status", "sara_status")) {
+  assignedSummary[[column]] <- origSummary[[column]][origMatch]
+}
 
 assignedSummaryDupes <- assignedSummary %>%
   group_by(iNaturalistTaxonId) %>%
