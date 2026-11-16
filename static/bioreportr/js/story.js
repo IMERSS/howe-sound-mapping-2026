@@ -171,6 +171,23 @@ bioreportr.storyPage.reveal = function (that, loaded, global) {
 bioreportr.storyPage.isActive = (activePaneKey, paneKey) => activePaneKey === paneKey;
 
 /**
+ * Accumulate the panes which have been shown. The record is the identical object until a pane is first shown, so that
+ * whatever depends on it recomputes only then.
+ * @param {bioreportr.storyPage} that - The story page, by which the record is remembered
+ * @param {String} activePaneKey - The key of the pane shown
+ * @return {Object<String, Boolean>} The key of each pane which has been shown, mapped to `true`
+ */
+bioreportr.storyPage.activatedPanes = function (that, activePaneKey) {
+    const bare = fluid.unwrapProxy(that);
+    const last = bioreportr.storyPage.activatedRecords.get(bare) || {};
+    const togo = last[activePaneKey] ? last : {...last, [activePaneKey]: true};
+    bioreportr.storyPage.activatedRecords.set(bare, togo);
+    return togo;
+};
+
+bioreportr.storyPage.activatedRecords = new WeakMap();
+
+/**
  * Read the markup of a `<template>` element of the document holding a component, e.g. site navigation rendered into
  * the page by Hugo, which is to be rendered within the component's own template.
  * @param {Element} container - An element of the document

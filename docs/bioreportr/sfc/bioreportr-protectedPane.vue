@@ -32,9 +32,10 @@ fluid.registerNamespace("bioreportr.protectedAreas");
 fluid.def("bioreportr.protectedAreas", {
     $layers: "fluid.component",
     // Whether the pane keeps only the records which can be mapped, leaving out the species known only from records
-    // without a position, e.g. those of lists, which would leave the map nothing to fit when chosen. A story setting it
-    // sets mappedOnly in project$protected of its scripts/project.R too, so that the pane's summaries agree
-    mappedOnly: false,
+    // without a position, e.g. those of lists, which would leave the map nothing to fit when chosen. Named once, as
+    // protectedMappedOnly in the settings of the project's bioreportr.yaml, which scripts/Protected_map_mapbox.R reads
+    // too, so that the pane's summaries agree
+    mappedOnly: "{storyPage}.protectedMappedOnly",
     active: "$compute:bioreportr.storyPage.isActive({storyPage}.activePaneKey, Protected)",
     hover: "$effect:bioreportr.protectedAreas.bindCards({storyPage}, {storyPage}.map.readyMap, {storyPage}.mapData, {global})",
     selects: "$effect:bioreportr.protectedAreas.bindSelects({storyPage}, {global})",
@@ -45,7 +46,8 @@ fluid.def("bioreportr.protectedAreas", {
     panelMarkup: "$compute:bioreportr.protectedAreas.panelMarkup({storyPage}.checklistTaxon, {self}.regionRecords, {storyPage}.selectedRegion, {storyPage}.statusLabels)",
     // The native species reported in no protected area, and the ids of the native species, those of conservation
     // concern and those reported within a KBA - see bioreportr.protectedAreas.regionFilter
-    taxonSets: "$compute:bioreportr.protectedAreas.taxonSets({storyPage}.pkg, {storyPage}.taxa.rowById, {storyPage}.regionIndirectionRows)",
+    // They are derived only once the pane is first shown, or a selection needs them - see the story page's activatedPanes
+    taxonSets: "$compute:bioreportr.protectedAreas.taxonSetsWhenNeeded({storyPage}, {storyPage}.activatedPanes, {storyPage}.selectedRegion)",
     // The area, group or other region of the selection, without any subset of its species - outlined on the map, marked
     // in the legend, and summarised by the card and chart shown
     baseRegion: "$compute:bioreportr.protectedAreas.baseRegion({storyPage}.selectedRegion)",
@@ -83,6 +85,23 @@ bioreportr.protectedAreas.parseSelection = function (selectedRegion) {
 bioreportr.protectedAreas.baseRegion = function (selectedRegion) {
     const region = bioreportr.protectedAreas.parseSelection(selectedRegion).region;
     return region === bioreportr.protectedAreas.allAreas ? null : region;
+};
+
+/**
+ * Compute the sets of taxa by which the pane selects some of the species of a region, once the pane is first shown or
+ * the selection, e.g. held in the URL, needs them - until then they are empty. The story page's members are read
+ * within, rather than as arguments, so that none of them is derived until then.
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {Object<String, Boolean>} activatedPanes - The panes which have been shown
+ * @param {String|null} selectedRegion - The selection, as held in the URL, if any
+ * @return {Object} The sets - see bioreportr.protectedAreas.taxonSets
+ */
+bioreportr.protectedAreas.taxonSetsWhenNeeded = function (storyPage, activatedPanes, selectedRegion) {
+    const {region, subset} = bioreportr.protectedAreas.parseSelection(selectedRegion);
+    const needed = activatedPanes.Protected || !!subset || region === bioreportr.protectedAreas.unprotected;
+    const empty = new Set();
+    return needed ? bioreportr.protectedAreas.taxonSets(storyPage.pkg, storyPage.taxa.rowById, storyPage.regionIndirectionRows) :
+        {unprotected: empty, native: empty, concern: empty, kba: empty, unique: {}};
 };
 
 /**
@@ -208,6 +227,7 @@ bioreportr.protectedAreas.panelMarkup = function (taxon, records, region, status
         <dt>Records:</dt> <dd>${bioreportr.formatCount(records.length)}</dd>
         <dt>First seen:</dt> <dd>${bioreportr.eventDay(records[0].eventDate)}</dd>
         <dt>Last seen:</dt> <dd>${bioreportr.eventDay(fluid.peek(records).eventDate)}</dd>
+        ${bioreportr.atlas.statusFields(taxon)}
       </dl>
     </div>
   </div>
@@ -544,6 +564,13 @@ bioreportr.protectedAreas.showSelection = function (selectedRegion, baseRegion, 
 
 .mxcw-pa-taxon-pane .mxcw-atlas-facts dd {
     margin: 0;
+}
+
+/* The plant's conservation status, the longest of its facts, runs beneath its label across the panel's width - see
+   bioreportr.atlas.statusFields */
+.mxcw-pa-taxon-pane .mxcw-atlas-facts dt:has(+ dd.mxcw-taxon-status),
+.mxcw-pa-taxon-pane .mxcw-atlas-facts dd.mxcw-taxon-status {
+    grid-column: 1 / -1;
 }
 
 .mxcw-pa-taxon-region {
@@ -968,7 +995,7 @@ bioreportr.protectedAreas.showSelection = function (selectedRegion, baseRegion, 
 </nav>
 <section class="mxcw-pa-card-summary" data-key="" style="--pa-colour: #eefaff">
 <h3 class="mxcw-pa-summary-title">All protected and conserved areas</h3>
-<p class="mxcw-pa-summary-text">Of the 782 native vascular plants known from the region, 569 (73%) have been recorded in at least one protected or conserved area, from provincial parks and ecological reserves to old growth management areas and private conservation lands. The remaining 213 are so far known only from outside them.</p>
+<p class="mxcw-pa-summary-text">Of the 782 native vascular plants known from the region, 569 (73%) have been recorded in at least one protected or conserved area, from provincial parks and ecological reserves to old growth management areas and private conservation lands. The remaining 213 are so far known only from outside protected areas.</p>
 <div class="mxcw-pa-stats">
 <div class="mxcw-pa-stat">
 <b>42</b>

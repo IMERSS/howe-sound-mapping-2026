@@ -48,6 +48,11 @@ fluid.def("howe.story", {
     // The species of the Community Science pane, which open on the atlas, are those of the place and taxon of its panels
     // - see paneOverrides below
     inatSpeciesQuery: {place_id: 121270, taxon_id: 211194},
+    // The one field of the curation history, the notes of the compiler of the checklist, written into the history by
+    // scripts/prepare_curation_history.R - see the curation section of scripts/project.R
+    curationHistorySources: [
+        {field: "notes", source: "Andrew Simon", label: "Compiler's notes", cite: "Simon"}
+    ],
     gridResolution: 1000,
     // The regions which may filter the records - a category of protected area is matched through rows of the region
     // index giving each area the label of its category, see GroupField in scripts/intersectShapes.R

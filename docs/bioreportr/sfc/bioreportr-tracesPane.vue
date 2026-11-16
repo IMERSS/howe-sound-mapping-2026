@@ -23,7 +23,8 @@ fluid.def("bioreportr.traces", {
     // The settings of the timeline's pacing which a story gives for its own record, over bioreportr.traces.pacingDefaults
     pacing: {},
     active: "$compute:bioreportr.storyPage.isActive({storyPage}.activePaneKey, Traces)",
-    events: "$compute:bioreportr.traces.buildEvents({storyPage}.taxa.allRows, {storyPage}.byTaxon, {storyPage}.statusById, {storyPage}.recentYear, {storyPage}.recordAnnotations)",
+    // Derived only once the pane is first shown - see the story page's activatedPanes
+    events: "$compute:bioreportr.traces.eventsOnceShown({storyPage}, {storyPage}.activatedPanes)",
     // The classes of the story's left pane while the timeline shows - see bioreportr.traces.leftPaneClass
     leftPaneClass: "$compute:bioreportr.traces.leftPaneClass({self}.active, {self}.paused, {self}.scrubbing)",
     control: "$effect:bioreportr.traces.control({self}, {storyPage}, {storyPage}.map.readyMap, {self}.events, {self}.active, {storyPage}.loaded, {global})",
@@ -85,6 +86,16 @@ bioreportr.traces.playIcons = {
  * @property {Object} record - The record of the moment
  * @property {Number} year - The year of the record
  */
+
+/**
+ * Build the events of the timeline once its pane is first shown - until then there are none. The story page's members
+ * are read within, rather than as arguments, so that none of them is derived until the pane is shown.
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {Object<String, Boolean>} activatedPanes - The panes which have been shown
+ * @return {Object[]} The events - see bioreportr.traces.buildEvents
+ */
+bioreportr.traces.eventsOnceShown = (storyPage, activatedPanes) => activatedPanes.Traces ?
+    bioreportr.traces.buildEvents(storyPage.taxa.allRows, storyPage.byTaxon, storyPage.statusById, storyPage.recentYear, storyPage.recordAnnotations) : [];
 
 bioreportr.traces.buildEvents = function (taxaRows, byTaxon, statusById, recentYear, annotations) {
     const events = [];
@@ -754,8 +765,8 @@ bioreportr.traces.control = function (that, storyPage, map, events, active, load
 .mxcw-leftPane.mxcw-traces-active > .resize-bar {
     display: none !important;
 }
-/* How far the map is dimmed suits the landscape a story shows - a story whose imagery is dark already, e.g. Galiano
-   Island's forest and sea, lightens it by setting these properties in its own stylesheet */
+/* How far the map is dimmed suits the landscape a story shows - a story whose imagery is dark already, e.g. of forest
+   and sea, lightens it by setting these properties in its own stylesheet */
 .mxcw-leftPane.mxcw-traces-active .maplibregl-canvas {
     filter: brightness(var(--mxcw-traces-brightness, 0.45)) saturate(var(--mxcw-traces-saturation, 0.6));
 }

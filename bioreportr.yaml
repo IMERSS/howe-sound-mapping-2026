@@ -13,3 +13,9 @@ data:
   # The columnar data package of the three files above, as the tables obs, taxa and regionIndirection, packed from them
   # by R/build.R as the final stage of data preparation, with its details beside it as "-details.viz"
   viz: AHSBR_Tracheophyta_2026-06-16.viz
+  # The history of the curatorial notes on each taxon, prepared by scripts/prepare_curation_history.R - published
+  curationHistory: AHSBR_Tracheophyta_curation-history_2026-11-15.csv
+  # The taxa set aside from the checklist, prepared by scripts/prepare_excluded_taxa.R - published
+  excludedTaxa: AHSBR_Tracheophyta_excluded-taxa_2026-11-15.csv
+  # The index of the shapes the records are intersected with by scripts/intersectShapes.R - see spatial_data/vectors
+  shapeIndex: "Howe Shapefile Index.csv"

@@ -7,3 +7,16 @@ data:
   catalogue: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-orig.csv
   # The index of the shapes the records are intersected with by scripts/intersectShapes.R - see spatial_data/vectors
   shapeIndex: "Howe Shapefile Index.csv"
+  # The ultimate checklist, read by scripts/prepare_summary.R and scripts/prepare_curation_history.R - its notes column
+  # holds the compiler's notes shown as the curation history
+  list: AHSBR_Tracheophyta_ultimate-list_2026-06-16.csv
+  # The review key of the Átl’ḵa7tsem/Howe Sound review of vascular plant names, from adfsimon-bioinfo, read by
+  # scripts/prepare_working_list.R
+  reviewKey: AHSBR_Tracheophyta_review-key_2024-11-14.csv
+  # The taxa set aside from the checklist by that review, written by scripts/prepare_working_list.R and read by
+  # scripts/prepare_curation_history.R and scripts/prepare_excluded_taxa.R
+  workingList: AHSBR_Tracheophyta_working-list_2026-11-15.csv
+  # The conservation rankings of the region's vascular plants - BC list, COSEWIC status and SARA listing - from
+  # adfsimon-bioinfo's Howe_Sound/2026_synthesis/ranked/Howe_Sound_vascular_plants_reviewed_ranked_curated.csv, read by
+  # scripts/prepare_summary.R
+  rankings: AHSBR_Tracheophyta_conservation-rankings_2026-04-21.csv
