@@ -80,6 +80,14 @@ fluid.def("howe.story", {
         {filterName: "Conservation Status", fieldName: "provincial_concern", fieldValues: ["concern", "secure"]},
         {filterName: "Graminoid status", fieldName: "graminoid", fieldValues: ["graminoid", "non-graminoid"], valueOf: "hortis.graminoidValue"}
     ],
+    // The Download list panel names the story's whole area so, and its files so - see bioreportr-list.vue
+    list: {
+        $component: {
+            areaName: "the whole Átl’ḵa7tsem/Howe Sound Biosphere Region",
+            // The stem of each downloaded checklist's file name, in plain letters
+            fileStem: "Flora-of-the-Howe-Sound-Biosphere"
+        }
+    },
     paneOverrides: {
         Traces: {
             visibleMap: true

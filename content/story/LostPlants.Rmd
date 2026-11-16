@@ -16,25 +16,25 @@ paneComponent: bioreportr.lostPlantsPane
 ::: {.mxcw-lost-text data-gallery="lost"}
 This gallery shows `<span class="mxcw-lost-count">@{count}</span>`{=html} native species once reported for the Átl’ḵa7tsem/Howe Sound Biosphere Region, which have not been seen in recent decades. Some may be lost *to us*—overlooked, forgotten, or waiting to be rediscovered. Others may be lost *because of us*, through impacts like habitat change or the introduction of invasive species.
 
-<span class="mxcw-callout">Pick a plant from the gallery</span> to turn it over and read any curatorial notes on it. From there you can follow it to its records in the Atlas, or add your own notes in Living Data. Then join local naturalists and community members in searching for it, sharing what you find with the
+<span class="mxcw-callout">Select a plant from the gallery</span> to read its curatorial notes, then explore its distribution on the [Atlas](#pane:Status), or add curatorial notes in [Living Data](#pane:Curation). Then join local naturalists and community members in searching for it, sharing what you find with the
 [Átl’ḵa7tsem/Howe Sound Biosphere Region](https://www.inaturalist.org/projects/atl-ka7tsem-howe-sound-biosphere-region)
 project on iNaturalist.
 :::
 
 ::: {.mxcw-lost-text data-gallery="confirmed" hidden="hidden"}
-These native species were known to the region's earlier botanists, and have been **seen again** since 2000. They are the enduring core of its native flora—though being found again is no promise of security, and some now survive in only one or two places.
+These native species were reported for the region in the past, and have been seen again since 2000. They represent the enduring core of its native flora—though being found again is no promise of security, and some plants are known to occur in only one or two places.
 
-<span class="mxcw-callout">Pick a plant from the gallery</span> to turn it over and read any curatorial notes on it, then follow it to its records in the Atlas to see where it persists, or add your own notes in Living Data.
+<span class="mxcw-callout">Select a plant from the gallery</span> to read its curatorial notes, then explore its distribution on the [Atlas](#pane:Status), or add curatorial notes in [Living Data](#pane:Curation).
 :::
 
 ::: {.mxcw-lost-text data-gallery="new" hidden="hidden"}
-These native species were **first reported** for the Átl’ḵa7tsem/Howe Sound Biosphere Region since 2000. Some were surely here all along, overlooked by earlier botanists or confused with their relatives; others may be newly arrived, or newly told apart by taxonomists.
+These native species were first reported for the Átl’ḵa7tsem/Howe Sound Biosphere Region since 2000. Some were surely here all along, overlooked by earlier botanists or confused with their relatives; others may be new arrivals or newly recognized taxonomically.
 
-<span class="mxcw-callout">Pick a plant from the gallery</span> to turn it over and read any curatorial notes on it, then follow it to its records in the Atlas, or add your own notes in Living Data.
+<span class="mxcw-callout">Select a plant from the gallery</span> to read its curatorial notes, then explore its distribution on the [Atlas](#pane:Status), or add curatorial notes in [Living Data](#pane:Curation).
 :::
 
 ::: {.mxcw-lost-text data-gallery="excluded" hidden="hidden"}
-Not every plant reported for the region belongs on its checklist. These taxa are **excluded** from it: on review, most proved to be garden escapes or domesticated plants that persist without establishing, some to have been planted, and a few to have been misreported.
+Not every plant reported for the region is an accepted part of its flora. Some plants have been excluded for various reasons: on review, most proved to be garden escapes or domesticated plants that persist without establishing, some to have been planted, and a few to have been misreported.
 
-<span class="mxcw-callout">Pick a plant from the gallery</span> to turn it over and read the reason it was set aside. These notes show how the checklist was made, and where it remains open to question.
+<span class="mxcw-callout">Select a plant from the gallery</span> to read curatorial notes.
 :::
