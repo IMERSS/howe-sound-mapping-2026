@@ -149,6 +149,8 @@ FILES=(
     # prepared from the lists of checklist-catalogue-alignment-workflow, whose project's settings are in project.R
     scripts/prepare_curation_history.R
     scripts/prepare_excluded_taxa.R
+    # The conservation status of each taxon of the summary, from the BC CDC's rankings, as the Howe Sound synthesis assigns it
+    scripts/assign_conservation_status.R
 
     # Lint configuration
     .eslintrc.json

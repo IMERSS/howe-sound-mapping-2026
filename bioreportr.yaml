@@ -11,6 +11,9 @@ data:
   regionIndirection: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-regionIndirection.csv
   # The summary of the catalogue's taxa, published
   summary: AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv
+  # The columnar data package of the three files above, as the tables obs, taxa and regionIndirection, packed from them
+  # by R/build.R as the final stage of data preparation, with its details beside it as "-details.viz"
+  viz: AHSBR_Tracheophyta_2026-06-16.viz
   # The history of the curatorial notes on each taxon, prepared by scripts/prepare_curation_history.R - published
   curationHistory: AHSBR_Tracheophyta_curation-history_2026-11-15.csv
   # The taxa set aside from the checklist, prepared by scripts/prepare_excluded_taxa.R - published

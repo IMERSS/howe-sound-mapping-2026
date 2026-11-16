@@ -46,12 +46,16 @@ fluid.def("bioreportr.lostPlants", {
     batchDelay: 1100,
     // The cards of each gallery, by its key - each {cards: String[], complete: Boolean}
     cards: {},
-    plants: "$compute:bioreportr.lostPlants.select({storyPage}.taxa.allRows, {storyPage}.obsRows, {self}, {storyPage}.recordAnnotations, {storyPage}.statusById, {storyPage}.isSighting, {self}.galleries, {self}.excluded)",
+    // Derived only once the pane is first shown - see the story page's activatedPanes
+    plants: "$compute:bioreportr.lostPlants.plantsOnceShown({storyPage}, {self}, {storyPage}.activatedPanes)",
     // The photos of a gallery are fetched only once its tab is first chosen
     load: "$effect:bioreportr.lostPlants.load({self}, {self}.plants, {self}.gallery, {storyPage}.loaded)",
     // The cards are shown in a fresh random order each time the pane is opened, so that a different assemblage leads
     reshuffle: "$effect:bioreportr.lostPlants.reshuffle({self}, {storyPage}.activePaneKey)",
-    markup: "$compute:bioreportr.lostPlants.markup({self}.cards, {self}.gallery, {self}.galleries, {self}.plants)",
+    markup: "$compute:bioreportr.lostPlants.markup({self}.cards, {self}.gallery, {self}.galleries, {self}.plants, {self})",
+    // Once the gallery is drawn afresh, its search box is given back its focus, and any plant searched for is shown - see
+    // bioreportr.lostPlants.afterRender
+    afterRender: "$effect:bioreportr.lostPlants.afterRender({storyPage}, {self}.markup, {global})",
     // The gallery handles its own clicks, and a card turned over to show its notes turns back once the pointer leaves
     // it - see bioreportr.lostPlants.bindEvents
     events: "$effect:bioreportr.lostPlants.bindEvents({storyPage}, {global})",
@@ -78,33 +82,52 @@ bioreportr.lostPlants.loadExcluded = function (file) {
 };
 
 /**
+ * Select the plants of each gallery once the pane is first shown - until then there are none. The members of the story
+ * page and the pane are read within, rather than as arguments, so that none of them is derived until the pane is shown.
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {bioreportr.lostPlants} that - The pane's component
+ * @param {Object<String, Boolean>} activatedPanes - The panes which have been shown
+ * @return {Object<String, Object[]>} The plants of each gallery - see bioreportr.lostPlants.select
+ */
+bioreportr.lostPlants.plantsOnceShown = (storyPage, that, activatedPanes) => activatedPanes.LostPlants ?
+    bioreportr.lostPlants.select(storyPage.taxa.allRows, storyPage.pkg, that, storyPage.recordAnnotations, storyPage.statusById,
+        storyPage.sightingPredicates, that.galleries, that.excluded) : {};
+
+/**
  * Select the plants of each gallery from the site's data. The galleries of reporting statuses hold the native species
  * of their status - and the "lost" gallery, highest extirpation probability first, only those whose Solow EP is at
  * least `minEP` or which have no more than `maxRecords` records. A gallery with a `group` holds the excluded taxa of
  * that group, most recorded first.
  * @param {TaxonRow[]} taxaRows - All taxa
- * @param {Object[]} obsRows - All records
+ * @param {VizPackage} pkg - The data package
  * @param {Object} options - Members `minEP` and `maxRecords`
  * @param {Object<String, Object>} [annotations] - The annotations of records, by occurrenceID - those suspended from the
  * calculation of extirpation probability, e.g. of a planted population, are not counted as sightings
  * @param {Object<String, String>} statusById - The reporting status of each taxon, by id - see hortis.reportingStatusById,
  * which reads a summary's "reported" as unconfirmed
- * @param {Function} isSighting - Whether a record is a sighting - see the story page's member isSighting
+ * @param {Object[]} sightingPredicates - The predicates of a sighting - see the story page's member sightingPredicates
  * @param {Object<String, Object>} galleries - The galleries, by key - see bioreportr.lostPlants
  * @param {Object[]} excluded - The taxa kept off the list - see bioreportr.lostPlants.loadExcluded
  * @return {Object<String, Object[]>} The plants of each gallery, by its key, each with members `taxon`, `nRecords`,
  * `nUnmapped` and `lastRecorded`, and for an excluded taxon `excluded`, its row
  */
-bioreportr.lostPlants.select = function (taxaRows, obsRows, options, annotations, statusById, isSighting, galleries, excluded) {
-    const sightings = new Map();
-    obsRows.filter(obs => !annotations?.[obs.occurrenceID]?.excludeFromEP && isSighting(obs)).forEach(obs => {
-        const entry = sightings.get(obs.iNaturalistTaxonId) || {nRecords: 0, nUnmapped: 0, lastRecorded: NaN};
-        const year = parseInt(obs.eventDate, 10);
-        entry.nRecords++;
-        entry.nUnmapped += bioreportr.hasCoordinates(obs) ? 0 : 1;
-        entry.lastRecorded = Number.isNaN(entry.lastRecorded) ? year : Math.max(entry.lastRecorded, year || entry.lastRecorded);
-        sightings.set(obs.iNaturalistTaxonId, entry);
+bioreportr.lostPlants.select = function (taxaRows, pkg, options, annotations, statusById, sightingPredicates, galleries, excluded) {
+    // The sightings of each taxon counted towards EP, how many of them can't be mapped, and the year of the last - by one
+    // query grouping them by taxon
+    const year = {year: "eventDate"};
+    const unmapped = {not: {all: bioreportr.coordinatePredicates}};
+    const result = hortis.query(pkg, {
+        from: "obs",
+        where: [...bioreportr.notExcludedFromEPPredicates(fluid.unwrapProxy(annotations)), ...fluid.makeArray(fluid.unwrapProxy(sightingPredicates))],
+        groupBy: ["iNaturalistTaxonId"],
+        measures: {nRecords: {count: true}, nUnmapped: {count: true, filter: [unmapped]}, lastRecorded: {max: year}}
     });
+    const sightings = new Map();
+    for (let g = 0; g < result.groups; ++g) {
+        sightings.set(String(result.keys.iNaturalistTaxonId[g]), {
+            nRecords: result.measures.nRecords[g], nUnmapped: result.measures.nUnmapped[g], lastRecorded: result.measures.lastRecorded[g]
+        });
+    }
     const ofStatus = status => taxaRows
         .filter(taxon => taxon.inSummary && taxon.introduction_status === "native" && statusById[taxon.id] === status)
         .map(taxon => ({taxon, ...(sightings.get(taxon.id) || {nRecords: 0, nUnmapped: 0, lastRecorded: NaN})}));
@@ -118,6 +141,17 @@ bioreportr.lostPlants.select = function (taxaRows, obsRows, options, annotations
             .filter(({taxon, nRecords}) => +taxon.solow_EP >= options.minEP || nRecords > 0 && nRecords <= options.maxRecords)
             .sort((a, b) => +b.taxon.solow_EP - +a.taxon.solow_EP || a.taxon.scientificName.localeCompare(b.taxon.scientificName)) : plants;
     });
+};
+
+/**
+ * Render a scientific name for display in italics, with the words marking its rank - "ssp.", "var." and the like -
+ * set upright, as is the convention, e.g. Quercus garryana <span>var.</span> garryana.
+ * @param {String} name - The scientific name
+ * @return {String} The markup of the name, encoded
+ */
+bioreportr.lostPlants.nameMarkup = function (name) {
+    return hortis.dataTable.encode(name || "").replace(/(^|\s)(ssp\.|subsp\.|var\.|f\.|nothosubsp\.|nothovar\.)(?=\s)/g,
+        "$1<span class=\"mxcw-lost-rank\">$2</span>");
 };
 
 /**
@@ -139,7 +173,7 @@ bioreportr.lostPlants.renderCard = function (plant, photo) {
     return `<div class="mxcw-lost-card" data-taxon-id="${encode(plant.taxon.id)}"><div class="mxcw-lost-flip">
         <button type="button" class="mxcw-lost-front" aria-expanded="false">
             ${image}
-            <span class="mxcw-lost-name">${name}</span>
+            <span class="mxcw-lost-name">${bioreportr.lostPlants.nameMarkup(plant.taxon.scientificName)}</span>
             <span class="mxcw-lost-details">${encode(details)}</span>
             ${reason}${unmapped}
             <span class="mxcw-lost-credit">${encode(credit)}</span>
@@ -217,7 +251,13 @@ bioreportr.lostPlants.fetchCards = async function (that, allPlants, key) {
     const plants = allPlants[key];
     const {batchSize, batchDelay} = that;
     const keepWithout = !!that.galleries[key]?.group;
-    const write = (cards, complete) => that.cards = {...that.cards, [key]: {cards, complete}};
+    // Any card fetched ahead of its batch, for a plant searched for, is kept at the front until its batch brings it -
+    // see bioreportr.lostPlants.fetchOne
+    const write = (cards, complete) => {
+        const ids = new Set(cards.map(bioreportr.lostPlants.cardId));
+        const ahead = (that.cards[key]?.cards || []).filter(card => !ids.has(bioreportr.lostPlants.cardId(card)));
+        that.cards = {...that.cards, [key]: {cards: ahead.concat(cards), complete}};
+    };
     let cards = [];
     // Only taxa with an iNaturalist id can have a photo looked up
     const hasId = plant => /^\d+$/.test(plant.taxon.id);
@@ -246,15 +286,49 @@ bioreportr.lostPlants.fetchCards = async function (that, allPlants, key) {
 // The latest run of loading each gallery, so that a later run supersedes an earlier, and the galleries it has started
 bioreportr.lostPlants.runs = new WeakMap();
 
+// The id of the plant of a card's markup
+bioreportr.lostPlants.cardId = card => /data-taxon-id="([^"]*)"/.exec(card)?.[1];
+
+/**
+ * Fetch the photo of one plant of a gallery still loading and place its card at the gallery's front, so that a plant
+ * searched for is shown at once rather than once its batch arrives - see bioreportr.lostPlants.reveal. A plant of a
+ * gallery of the site's own taxa without an openly licensed photo has no card, as in its batch.
+ * @param {fluid.component} that - The component holding the gallery
+ * @param {String} key - The key of the gallery
+ * @param {Object} plant - The plant, as selected by `bioreportr.lostPlants.select`
+ * @return {Promise<Boolean>} Resolves to whether the plant has a card
+ */
+bioreportr.lostPlants.fetchOne = async function (that, key, plant) {
+    const keepWithout = !!that.galleries[key]?.group;
+    let photo;
+    if (/^\d+$/.test(plant.taxon.id)) {
+        try {
+            const taxon = (await (await fetch(`https://api.inaturalist.org/v1/taxa/${plant.taxon.id}`)).json()).results?.[0];
+            photo = taxon && bioreportr.atlas.licensedPhoto(taxon);
+        } catch (error) {
+            console.error("Could not fetch the photo from iNaturalist", error);
+        }
+    }
+    const entry = that.cards[key] || {cards: [], complete: false};
+    const id = String(plant.taxon.id);
+    const has = photo || keepWithout;
+    if (has && !entry.cards.some(card => bioreportr.lostPlants.cardId(card) === id)) {
+        that.cards = {...that.cards, [key]: {...entry, cards: [bioreportr.lostPlants.renderCard(plant, photo)].concat(entry.cards)}};
+    }
+    return !!has;
+};
+
 /**
  * Render the gallery shown, with its tabs above it.
  * @param {Object<String, Object>} cards - The cards of each gallery, by its key - see bioreportr.lostPlants.fetchCards
  * @param {String} gallery - The key of the gallery shown
  * @param {Object<String, Object>} galleries - The galleries, by key - see bioreportr.lostPlants
  * @param {Object<String, Object[]>} plants - The plants of each gallery
+ * @param {fluid.component} that - The component holding the gallery, whose search's state is kept apart from its
+ * signals, so that typing doesn't draw the gallery afresh - see bioreportr.lostPlants.search
  * @return {String} The markup of the gallery
  */
-bioreportr.lostPlants.markup = function (cards, gallery, galleries, plants) {
+bioreportr.lostPlants.markup = function (cards, gallery, galleries, plants, that) {
     const encode = hortis.dataTable.encode;
     // A gallery with no plants, e.g. of excluded taxa in a story which has none, has no tab
     const tabs = Object.entries(galleries).filter(([key]) => plants[key]?.length).map(([key, {label, title}]) =>
@@ -263,8 +337,18 @@ bioreportr.lostPlants.markup = function (cards, gallery, galleries, plants) {
     const entry = cards[gallery] || {cards: [], complete: false};
     const intro = galleries[gallery]?.intro ? `<p class="mxcw-lost-intro">${encode(galleries[gallery].intro)}</p>` : "";
     const loading = entry.complete ? "" : "<p class=\"mxcw-lost-loading\">Loading photos from iNaturalist …</p>";
-    return `<div class="mxcw-lost-gallery-pane"><div class="mxcw-lost-tabs" role="toolbar" aria-label="Galleries">${tabs}</div>
-        ${intro}<p class="mxcw-lost-hint">Pick a plant to turn it over and read its curatorial notes.</p>
+    // The search box at the right of the tabs - the same autocomplete as the atlas checklist's, in the same frame, which
+    // is moved into this slot each time the gallery is drawn afresh - see bioreportr.lostPlants.placeSearch
+    const search = bioreportr.lostPlants.search(that);
+    const searchBox = `<div class="mxcw-lost-search" role="search">
+        <span class="imerss-search-checklist">
+            <span class="imerss-filter-autocomplete"><span class="mxcw-lost-search-slot"></span></span>
+            <svg width="32" height="32" aria-hidden="true"><use href="#imerss-i-search-wide"/></svg>
+        </span>
+        <span class="mxcw-lost-search-status" role="status">${encode(search.message)}</span>
+    </div>`;
+    return `<div class="mxcw-lost-gallery-pane"><div class="mxcw-lost-tabs"><div class="mxcw-lost-tablist" role="toolbar" aria-label="Galleries">${tabs}</div>${searchBox}</div>
+        ${intro}<p class="mxcw-lost-hint">Select a plant to review its curatorial notes.</p>
         <div class="mxcw-lost-gallery">${entry.cards.join("")}</div>${loading}</div>`;
 };
 
@@ -295,14 +379,14 @@ bioreportr.lostPlants.backMarkup = function (plant, {historyById, sources, byTax
         !Number.isNaN(plant.lastRecorded) && "last seen " + plant.lastRecorded
     ]).filter(Boolean).map(fact => encode(String(fact))).join(" · ");
     const history = excluded?.group === "unlisted" ?
-        "<p class=\"mxcw-curation-none\">Not yet reviewed: this name is in the records, but scored too low in confidence to be put forward for review.</p>" :
+        "<p class=\"mxcw-curation-none\">Not yet reviewed: this name is in the records, but scored too low in confidence to be prioritized for review.</p>" :
         bioreportr.lostPlants.notesMarkup(taxon, historyById || {}, sources || [], byTaxon || {});
     // Only a plant of the site's own data has records in the atlas, and may be curated
     const known = !!rowById?.[taxon.id];
     const action = (kind, label) => `<button type="button" class="mxcw-lost-action" data-action="${kind}" data-taxon-id="${encode(taxon.id)}">${label}</button>`;
     const actions = known ? [action("atlas", "See in the Atlas"), canCurate ? action("curate", "Comment in Living Data") : ""].join("") : "";
     return `<div class="mxcw-lost-back-head">
-            <span class="mxcw-lost-name">${encode(taxon.scientificName)}</span>
+            <span class="mxcw-lost-name">${bioreportr.lostPlants.nameMarkup(taxon.scientificName)}</span>
             <button type="button" class="mxcw-lost-close" aria-label="Turn the card back">×</button>
         </div>
         <p class="mxcw-lost-facts">${facts}</p>
@@ -372,6 +456,10 @@ bioreportr.lostPlants.click = function (storyPage, event) {
     const front = target.closest(".mxcw-lost-front");
     const action = target.closest(".mxcw-lost-action");
     const card = target.closest(".mxcw-lost-card");
+    // Any choice in the gallery ends a search still waiting to show its plant
+    if (tab || front) {
+        bioreportr.lostPlants.search(lostPlants).target = null;
+    }
     if (tab) {
         lostPlants.gallery = tab.dataset.gallery;
     } else if (action) {
@@ -388,19 +476,225 @@ bioreportr.lostPlants.click = function (storyPage, event) {
         bioreportr.lostPlants.flip(card, false);
         card.querySelector(".mxcw-lost-front")?.focus();
     } else if (front) {
-        const plant = (lostPlants.plants[lostPlants.gallery] || []).find(candidate => String(candidate.taxon.id) === card.dataset.taxonId);
-        if (plant) {
-            card.ownerDocument.querySelectorAll(".mxcw-lost-flipped").forEach(other => bioreportr.lostPlants.flip(other, false));
-            card.querySelector(".mxcw-lost-back").innerHTML = bioreportr.lostPlants.backMarkup(plant, {
-                historyById: storyPage.curation?.historyById,
-                sources: storyPage.curationHistorySources,
-                byTaxon: storyPage.curation?.byTaxon,
-                statusLabels: storyPage.statusLabels,
-                rowById: storyPage.taxa.rowById,
-                canCurate: !!(bioreportr.curation?.paneKey && bioreportr.curation.paneKey(storyPage.panes))
-            });
-            bioreportr.lostPlants.flip(card, true);
+        bioreportr.lostPlants.open(storyPage, card);
+    }
+};
+
+/**
+ * Turn a plant's card over to show its notes, filling its back as it turns, and turn back any other.
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {Element} card - The card
+ */
+bioreportr.lostPlants.open = function (storyPage, card) {
+    const lostPlants = storyPage.lostPlants;
+    const plant = (lostPlants.plants[lostPlants.gallery] || []).find(candidate => String(candidate.taxon.id) === card.dataset.taxonId);
+    if (plant) {
+        card.ownerDocument.querySelectorAll(".mxcw-lost-flipped").forEach(other => bioreportr.lostPlants.flip(other, false));
+        card.querySelector(".mxcw-lost-back").innerHTML = bioreportr.lostPlants.backMarkup(plant, {
+            historyById: storyPage.curation?.historyById,
+            sources: storyPage.curationHistorySources,
+            byTaxon: storyPage.curation?.byTaxon,
+            statusLabels: storyPage.statusLabels,
+            rowById: storyPage.taxa.rowById,
+            canCurate: !!(bioreportr.curation?.paneKey && bioreportr.curation.paneKey(storyPage.panes))
+        });
+        bioreportr.lostPlants.flip(card, true);
+    }
+};
+
+/** Searching the gallery **/
+
+// The state of each gallery's search - whether its box had the focus and where its caret stood, its message, and the
+// plant sought - kept apart from its signals, so that typing doesn't draw the gallery afresh
+bioreportr.lostPlants.searches = new WeakMap();
+
+/**
+ * The state of a gallery's search.
+ * @param {fluid.component} that - The component holding the gallery
+ * @return {Object} Its state - members `focused`, `caret`, `message` and `target`
+ */
+bioreportr.lostPlants.search = function (that) {
+    let search = bioreportr.lostPlants.searches.get(that);
+    if (!search) {
+        search = {focused: false, caret: 0, message: "", target: null};
+        bioreportr.lostPlants.searches.set(that, search);
+    }
+    return search;
+};
+
+/**
+ * Find the plant of any gallery best matching a query - one whose scientific or common name is the query, else one
+ * whose name begins with it, else one whose name contains it - and the gallery holding it, in the order of the tabs.
+ * @param {Object<String, Object[]>} plants - The plants of each gallery
+ * @param {Object<String, Object>} galleries - The galleries, by key
+ * @param {String} query - The text sought
+ * @return {Object|null} Members `plant` and `gallery`, or null if no plant matches
+ */
+bioreportr.lostPlants.find = function (plants, galleries, query) {
+    const sought = query.trim().toLowerCase();
+    const entries = Object.keys(galleries).flatMap(gallery => (plants[gallery] || []).map(plant => ({plant, gallery})));
+    const names = ({plant}) => [plant.taxon.scientificName, plant.taxon.commonName].filter(Boolean).map(name => name.toLowerCase());
+    return !sought ? null : entries.find(entry => names(entry).includes(sought)) ||
+        entries.find(entry => names(entry).some(name => name.startsWith(sought))) ||
+        entries.find(entry => names(entry).some(name => name.includes(sought))) || null;
+};
+
+/**
+ * Bring the gallery to the plant best matching a query - to the tab holding it, where its card is turned over, once it
+ * has loaded, to show its notes - see bioreportr.lostPlants.afterRender.
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {String} query - The text sought
+ * @param {Document} dokkument - The document holding the gallery
+ */
+bioreportr.lostPlants.seek = function (storyPage, query, dokkument) {
+    const lostPlants = storyPage.lostPlants;
+    const search = bioreportr.lostPlants.search(lostPlants);
+    const found = bioreportr.lostPlants.find(lostPlants.plants, lostPlants.galleries, query);
+    search.target = found && {id: String(found.plant.taxon.id), gallery: found.gallery, name: found.plant.taxon.scientificName};
+    search.message = found ? "" : "No plant of that name in the gallery";
+    if (found && found.gallery !== lostPlants.gallery) {
+        lostPlants.gallery = found.gallery;
+    } else {
+        bioreportr.lostPlants.reveal(storyPage, dokkument);
+    }
+    bioreportr.lostPlants.showStatus(dokkument, search.message);
+};
+
+/**
+ * Show a message beside the search box, without drawing the gallery afresh.
+ * @param {Document} dokkument - The document holding the gallery
+ * @param {String} message - The message
+ */
+bioreportr.lostPlants.showStatus = function (dokkument, message) {
+    const status = dokkument.querySelector(".mxcw-dataPane-LostPlants .mxcw-lost-search-status");
+    if (status) {
+        status.textContent = message;
+    }
+};
+
+/**
+ * Show the plant sought, if its card is in the gallery shown - scrolled into view and turned over. A plant whose card
+ * hasn't yet arrived, its gallery still loading, has its card fetched at once - see bioreportr.lostPlants.fetchOne - and
+ * it is shown again each time the gallery is drawn afresh until it has loaded, since that turns the card back. One
+ * which has no card, since it has no openly licensed photo, is said to have none.
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {Document} dokkument - The document holding the gallery
+ */
+bioreportr.lostPlants.reveal = function (storyPage, dokkument) {
+    const lostPlants = storyPage.lostPlants;
+    const search = bioreportr.lostPlants.search(lostPlants);
+    const target = search.target;
+    if (target && target.gallery === lostPlants.gallery) {
+        const card = dokkument.querySelector(`.mxcw-dataPane-LostPlants .mxcw-lost-card[data-taxon-id="${CSS.escape(target.id)}"]`);
+        const complete = !!lostPlants.cards[target.gallery]?.complete;
+        if (card) {
+            search.target = complete ? null : target;
+            search.message = "";
+            // Scrolled to as it is first shown, and once more as its gallery completes, which may move it
+            if (!target.shown || complete) {
+                card.scrollIntoView({block: "center", behavior: "smooth"});
+                target.shown = true;
+            }
+            bioreportr.lostPlants.open(storyPage, card);
+        } else if (complete || target.missing) {
+            search.target = null;
+            search.message = `${target.name} has no photo, so no card`;
+        } else if (!target.fetching) {
+            // Not yet arrived in its batch - fetched at once, and shown once its card is drawn
+            target.fetching = true;
+            const plant = (lostPlants.plants[target.gallery] || []).find(candidate => String(candidate.taxon.id) === target.id);
+            if (plant) {
+                bioreportr.lostPlants.fetchOne(lostPlants, target.gallery, plant).then(has => {
+                    if (!has && search.target === target) {
+                        target.missing = true;
+                        bioreportr.lostPlants.reveal(storyPage, dokkument);
+                    }
+                });
+            }
         }
+        bioreportr.lostPlants.showStatus(dokkument, search.message);
+    }
+};
+
+// The id of the gallery's search box
+bioreportr.lostPlants.searchId = "mxcw-lost-search";
+
+// The search widget of each document, made once and moved into the gallery each time it is drawn afresh
+bioreportr.lostPlants.searchWidgets = new WeakMap();
+
+/**
+ * Suggest the plants of any gallery matching a query, best first - see bioreportr.lostPlants.find - each by its
+ * scientific name, followed by its common name.
+ * @param {fluid.component} lostPlants - The component holding the gallery
+ * @param {String} query - The text typed
+ * @return {String[]} The suggestions
+ */
+bioreportr.lostPlants.suggest = function (lostPlants, query) {
+    const sought = query.trim().toLowerCase();
+    const seen = new Set();
+    const ranked = [[], [], []];
+    Object.keys(lostPlants.galleries).forEach(gallery => (lostPlants.plants[gallery] || []).forEach(({taxon}) => {
+        const names = [taxon.scientificName, taxon.commonName].filter(Boolean).map(name => name.toLowerCase());
+        const rank = names.includes(sought) ? 0 : names.some(name => name.startsWith(sought)) ? 1 : names.some(name => name.includes(sought)) ? 2 : -1;
+        if (rank >= 0 && !seen.has(taxon.scientificName)) {
+            seen.add(taxon.scientificName);
+            ranked[rank].push(taxon.scientificName + (taxon.commonName ? ` (${taxon.commonName})` : ""));
+        }
+    }));
+    return ranked.flat().slice(0, 30);
+};
+
+/**
+ * Place the gallery's search box in its slot, making it once - the same accessible-autocomplete as the atlas
+ * checklist's, which seeks the plant chosen. It is made outside the gallery's markup, which is drawn afresh as its cards
+ * arrive, and moved into each drawing, keeping what was typed in it.
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {Window} window - The window holding the page
+ */
+bioreportr.lostPlants.placeSearch = function (storyPage, window) {
+    const dokkument = window.document;
+    const slot = dokkument.querySelector(".mxcw-dataPane-LostPlants .mxcw-lost-search-slot");
+    let widget = bioreportr.lostPlants.searchWidgets.get(dokkument);
+    if (!widget && window.accessibleAutocomplete) {
+        widget = dokkument.createElement("div");
+        window.accessibleAutocomplete({
+            element: widget,
+            id: bioreportr.lostPlants.searchId,
+            placeholder: "Find a plant ...",
+            minLength: 2,
+            displayMenu: "overlay",
+            confirmOnBlur: false,
+            source: (query, callback) => callback(bioreportr.lostPlants.suggest(storyPage.lostPlants, query)),
+            // A suggestion names the plant first, before any common name in brackets
+            onConfirm: choice => choice && bioreportr.lostPlants.seek(storyPage, choice.replace(/ \(.*\)$/, ""), dokkument)
+        });
+        widget.querySelector("input")?.setAttribute("spellcheck", "false");
+        bioreportr.lostPlants.searchWidgets.set(dokkument, widget);
+    }
+    if (slot && widget && widget.parentElement !== slot) {
+        slot.appendChild(widget);
+    }
+};
+
+/**
+ * Once the gallery is drawn afresh, move its search box into it, give the box back the focus and caret it had, and show
+ * any plant sought. Deferred until the markup is in the page.
+ * @param {bioreportr.storyPage} storyPage - The story page
+ * @param {String} markup - The gallery's markup, on whose drawing this follows
+ * @param {Window} window - The window holding the page
+ */
+bioreportr.lostPlants.afterRender = function (storyPage, markup, window) {
+    if (window.requestAnimationFrame) {
+        window.requestAnimationFrame(() => {
+            const search = bioreportr.lostPlants.search(storyPage.lostPlants);
+            bioreportr.lostPlants.placeSearch(storyPage, window);
+            const input = window.document.getElementById(bioreportr.lostPlants.searchId);
+            if (input && search.focused && window.document.activeElement !== input) {
+                input.focus();
+                input.setSelectionRange(search.caret, search.caret);
+            }
+            bioreportr.lostPlants.reveal(storyPage, window.document);
+        });
     }
 };
 
@@ -424,6 +718,35 @@ bioreportr.lostPlants.bindEvents = function (storyPage, window) {
     dokkument.addEventListener("click", event => {
         if (event.target.closest?.(".mxcw-lost-gallery-pane")) {
             bioreportr.lostPlants.click(storyPage, event);
+        }
+    });
+    // The search box keeps its own state, since the gallery is drawn afresh as its cards arrive - see
+    // bioreportr.lostPlants.search. A suggestion chosen is sought by the widget; text entered with no suggestion
+    // highlighted is sought on Enter
+    const inSearch = event => event.target.id === bioreportr.lostPlants.searchId ? event.target : null;
+    const search = () => bioreportr.lostPlants.search(storyPage.lostPlants);
+    dokkument.addEventListener("input", event => {
+        const input = inSearch(event);
+        if (input) {
+            search().caret = input.selectionStart ?? input.value.length;
+        }
+    });
+    dokkument.addEventListener("keydown", event => {
+        const input = inSearch(event);
+        if (input && event.key === "Enter" && !dokkument.querySelector(".mxcw-lost-search .autocomplete__option--focused")) {
+            event.preventDefault();
+            bioreportr.lostPlants.seek(storyPage, input.value, dokkument);
+        }
+    });
+    dokkument.addEventListener("focusin", event => {
+        if (inSearch(event)) {
+            search().focused = true;
+        }
+    });
+    dokkument.addEventListener("focusout", event => {
+        // Not when the box loses its focus by being drawn afresh, which it is to be given back
+        if (inSearch(event) && event.target.isConnected) {
+            search().focused = false;
         }
     });
     dokkument.addEventListener("pointerout", event => {
@@ -552,8 +875,13 @@ bioreportr.lostPlants.paneMarkup = galleryMarkup => ({LostPlants: galleryMarkup}
     margin-bottom: 4px;
 }
 
-.mxcw-lost-front span {
+.mxcw-lost-front > span {
     padding: 0 var(--story-gap);
+}
+
+/* The words marking a name's rank, e.g. "ssp." or "var.", are set upright within the italic name */
+.mxcw-lost-rank {
+    font-style: normal;
 }
 
 .mxcw-lost-name {
@@ -600,9 +928,112 @@ bioreportr.lostPlants.paneMarkup = galleryMarkup => ({LostPlants: galleryMarkup}
     z-index: 2;
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
     padding: 12px 12px 10px;
     background-color: #184E62;
+}
+
+.mxcw-lost-tablist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* The search box at the right of the tabs */
+.mxcw-lost-search {
+    position: relative;
+    margin-left: auto;
+}
+
+/* The search looks as the atlas checklist's does - a pale rounded box with the magnifier at its left, and its
+   suggestions in a white menu beneath. Those styles are scoped to the atlas's .imerss-container, outside which the
+   gallery lies, so they are given again here */
+.mxcw-lost-search .imerss-search-checklist {
+    position: relative;
+    display: block;
+    width: 250px;
+    max-width: 100%;
+    height: 26px;
+    color: #4b778f;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 13px;
+}
+
+.mxcw-lost-search .imerss-filter-autocomplete,
+.mxcw-lost-search .mxcw-lost-search-slot,
+.mxcw-lost-search .autocomplete__wrapper {
+    position: relative;
+    display: block;
+    width: 100%;
+}
+
+.mxcw-lost-search .imerss-search-checklist > svg {
+    position: absolute;
+    top: -2px;
+    left: 0;
+    width: 32px;
+    height: 32px;
+    padding-left: 11px;
+    color: #636c76;
+    pointer-events: none;
+}
+
+.mxcw-lost-search .autocomplete__input {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    height: 26px;
+    margin: 0;
+    padding: 3px 5px 3px 40px;
+    color: #4b778f;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 16px;
+    line-height: 20px;
+    background-color: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 100px;
+}
+
+.mxcw-lost-search .autocomplete__input--focused,
+.mxcw-lost-search .autocomplete__input:focus {
+    outline: 2px solid #4b778f;
+    outline-offset: 0;
+    box-shadow: none;
+}
+
+.mxcw-lost-search .autocomplete__menu {
+    position: absolute;
+    top: 26px;
+    left: 0;
+    right: 4px;
+    z-index: 100;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: #0b0c0c;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.26);
+}
+
+.mxcw-lost-search .autocomplete__option {
+    padding: 4px 10px;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.35;
+}
+
+.mxcw-lost-search-status {
+    position: absolute;
+    top: 100%;
+    right: 4px;
+    margin-top: 3px;
+    color: #FDF2CE;
+    font-size: var(--story-small);
+    white-space: nowrap;
 }
 
 .mxcw-lost-tab {
