@@ -3,6 +3,10 @@
 # unless said otherwise. None is published.
 # This file is the project's own, and is not copied by copyFrameworkOut.sh
 data:
+  # The catalogue as prepared, which scripts/intersectShapes.R labels with the regions its records fall in
+  catalogue: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-orig.csv
+  # The index of the shapes the records are intersected with by scripts/intersectShapes.R - see spatial_data/vectors
+  shapeIndex: "Howe Shapefile Index.csv"
   # The ultimate checklist, read by scripts/prepare_summary.R and scripts/prepare_curation_history.R - its notes column
   # holds the compiler's notes shown as the curation history
   list: AHSBR_Tracheophyta_ultimate-list_2026-06-16.csv

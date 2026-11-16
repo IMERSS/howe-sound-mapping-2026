@@ -1,8 +1,11 @@
-# The settings, beyond its data files named in bioreportr.yaml, of the Átl’ḵa7tsem/Howe Sound project read by the shared scripts of the bioReportR framework, such as
+# The settings, beyond its data files named in bioreportr.yaml and bioreportr-prep.yaml, of the Átl’ḵa7tsem/Howe Sound project read by the shared scripts of the bioReportR framework, such as
 # scripts/intersectShapes.R and scripts/Protected_map_mapbox.R. This file is the project's own, and is not copied by
 # copyFrameworkOut.sh
 
+<<<<<<< HEAD
+=======
 # The project's data files are named in bioreportr.yaml, which the story page reads too
+>>>>>>> origin/main
 # The project's data files: those its story page reads, named in bioreportr.yaml, and those which only prepare them,
 # named in bioreportr-prep.yaml
 config <- c(yaml::read_yaml("bioreportr.yaml")$data, yaml::read_yaml("bioreportr-prep.yaml")$data)

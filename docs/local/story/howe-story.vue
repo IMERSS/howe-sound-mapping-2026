@@ -33,16 +33,18 @@ howe.story.inverseWeibullCount = (x, maxCount) => maxCount < 200 ? x : 0.012 * M
 // of all its records, set in scripts/Historical_analysis_mapbox.R, so that it holds still as the years advance
 howe.story.followRecords = activePaneKey => activePaneKey !== "History";
 
+// The predicates of the query description language by which a record is a sighting of its plant - all but the species
+// list of the 2020 UNESCO nomination of the biosphere region, entered as pseudo-records all dated 2020-07-01 at one
+// place. They remain among the records shown, but are not sightings: they count neither towards extirpation
+// probability nor towards the history of a plant's records - as scripts/rebuild_howe_ultimate_list.py leaves them out
+// of the EP of the summary
+howe.story.sightingPredicates = [{not: {field: "datasetName", op: "contains", value: "UNESCO Nomination"}}];
 
 fluid.def("howe.story", {
     $layers: ["bioreportr.storyPage", "bioreportr.storyData", "bioreportr.atlasPanel", "bioreportr.storyPageTraces", "bioreportr.storyPageLostPlants",
         "bioreportr.storyPageProtectedAreas"],
-    // A record is a sighting of its plant unless it is one of the species list of the 2020 UNESCO nomination of the
-    // biosphere region, entered as pseudo-records all dated 2020-07-01 at one place. They remain among the records shown,
-    // but count neither towards extirpation probability nor towards the history of a plant's records - as
-    // scripts/rebuild_howe_ultimate_list.py leaves them out of the EP of the summary. This story differs from the
-    // W̱SÁNEĆ/Saanich Peninsula's, whose every record is a sighting - see sightingPredicates in bioreportr-atlasPanel.vue
-    sightingPredicates: [{not: {field: "datasetName", op: "contains", value: "UNESCO Nomination"}}],
+    // The 2020 UNESCO nomination's species list is not a sighting - see howe.story.sightingPredicates
+    sightingPredicates: howe.story.sightingPredicates,
     // The species of the Community Science pane, which open on the atlas, are those of the place and taxon of its panels
     // - see paneOverrides below
     inatSpeciesQuery: {place_id: 121270, taxon_id: 211194},

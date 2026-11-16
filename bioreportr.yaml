@@ -1,15 +1,14 @@
-# The project's own data files, named once here for every part of the project which reads them: its R scripts, through
-# scripts/project.R and R/build.R, and its story page, through the layer bioreportr.storyData, which
-# src/js/storyBuild.js ("npm run story") writes from this file into static/story/bioreportr-storyData.vue. Each is a file
-# of tabular_data, from which R/build.R publishes those the story page reads into static/local/data/tabular.
+# The data files which the project's story page reads at runtime, named once here: R/build.R publishes each from
+# tabular_data into static/local/data/tabular, and src/js/storyBuild.js ("npm run story") names them in the layer
+# bioreportr.storyData, written into static/story/bioreportr-storyData.vue. The files which only prepare these are
+# named in bioreportr-prep.yaml.
 # This file is the project's own, and is not copied by copyFrameworkOut.sh
 data:
-  # The catalogue as prepared, which scripts/intersectShapes.R labels with the regions its records fall in
-  catalogue: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-orig.csv
-  # The catalogue so labelled, and the index of its regions, written by scripts/intersectShapes.R - both published
+  # The catalogue labelled with the regions its records fall in, and the index of its regions, written by
+  # scripts/intersectShapes.R
   labels: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-labels.csv
   regionIndirection: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-regionIndirection.csv
-  # The summary of the catalogue's taxa, published
+  # The summary of the catalogue's taxa
   summary: AHSBR_Tracheophyta_ultimate-merged-summary_2026-06-16-prepared-taxa.csv
   # The columnar data package of the three files above, as the tables obs, taxa and regionIndirection, packed from them
   # by R/build.R as the final stage of data preparation, with its details beside it as "-details.viz"
