@@ -1,0 +1,9 @@
+# The data files read and written by the project's data preparation scripts on the way to those its story page reads,
+# which are named in bioreportr.yaml. The R scripts read both through scripts/project.R. Each is a file of tabular_data
+# unless said otherwise. None is published.
+# This file is the project's own, and is not copied by copyFrameworkOut.sh
+data:
+  # The catalogue as prepared, which scripts/intersectShapes.R labels with the regions its records fall in
+  catalogue: AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16-selected-orig.csv
+  # The index of the shapes the records are intersected with by scripts/intersectShapes.R - see spatial_data/vectors
+  shapeIndex: "Howe Shapefile Index.csv"

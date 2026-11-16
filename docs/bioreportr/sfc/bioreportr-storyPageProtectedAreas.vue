@@ -18,8 +18,9 @@ fluid.def("bioreportr.storyPageProtectedAreas", {
     // species of a region - see bioreportr.protectedAreas.regionFilter
     regionFilter: {
         $component: {
-            doFilter: `$method:bioreportr.protectedAreas.regionFilter({0}:obsRows, {1}:filterState, {storyPage}.regionIndirection.rows,
-                {storyPage}.regionFilterFieldNames, {storyPage}.protectedAreas.taxonSets, {storyPage}.activePaneKey)`
+            predicates: `$compute:bioreportr.protectedAreas.regionPredicates({self}.filterState, {storyPage}.regionIndirectionRows,
+                {storyPage}.regionFilterFieldNames, {storyPage}.protectedAreas.taxonSets, {storyPage}.activePaneKey,
+                {storyPage}.protectedAreas.mappedOnly)`
         }
     },
     // The panel of the plant chosen in the checklist - the atlas's, see bioreportr-atlasPanel.vue, or on the Protected

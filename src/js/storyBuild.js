@@ -329,11 +329,14 @@ bioreportr.storyBuild.writeStoryData = function (projectDir, outDir) {
     const {data} = yaml.load(fs.readFileSync(path.join(projectDir, "bioreportr.yaml"), "utf8"));
     const file = name => name ? JSON.stringify(`../local/data/tabular/${name}`) : "null";
     const members = {
+        // The columnar data package, once the story page reads it - see imerss-bioinfo's hortis.dataLoader
+        ...(data.viz ? {vizFile: file(data.viz)} : {}),
         obsFile: file(data.labels),
         regionIndirectionFile: file(data.regionIndirection),
         taxaFile: file(data.summary),
         curationHistoryFile: file(data.curationHistory),
-        recordAnnotationsFile: file(data.recordAnnotations)
+        recordAnnotationsFile: file(data.recordAnnotations),
+        excludedTaxaFile: file(data.excludedTaxa)
     };
     const text = `<script>
 "use strict";
