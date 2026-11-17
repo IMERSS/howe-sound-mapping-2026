@@ -36,7 +36,7 @@ howe.story.followRecords = activePaneKey => activePaneKey !== "History";
 // The predicates of the query description language by which a record is a sighting of its plant - all but the species
 // list of the 2020 UNESCO nomination of the biosphere region, entered as pseudo-records all dated 2020-07-01 at one
 // place. They remain among the records shown, but are not sightings: they count neither towards extirpation
-// probability nor towards the history of a plant's records - as scripts/rebuild_howe_ultimate_list.py leaves them out
+// probability nor towards the history of a plant's records - as scripts/prepare_ultimate_list.R leaves them out
 // of the EP of the summary
 howe.story.sightingPredicates = [{not: {field: "datasetName", op: "contains", value: "UNESCO Nomination"}}];
 

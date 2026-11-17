@@ -19,7 +19,8 @@ project <- list(
     renames = c("Heterocodon rariflorum" = "Heterocodon rariflorus", "Ranunculus aquatilis" = "Ranunculus aquatilis complex"),
     # The records of a dataset which is a species list rather than sightings - the appendix of the 2020 UNESCO
     # nomination, entered as 583 pseudo-records dated 2020-07-01 at one placeholder coordinate. They stay in the
-    # catalogue, but count in no analysis of sightings and are not mapped - see also scripts/prepare_obs.R
+    # catalogue and are shown, but count in no Solow analysis - the story counts them as no sightings either, by its
+    # isSighting in static/local/story/howe-story.vue
     listOnlyDatasets = "UNESCO Nomination"
   ),
   # The source catalogue, whose records are labelled with the regions they fall in

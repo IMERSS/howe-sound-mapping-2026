@@ -8,7 +8,8 @@ source("scripts/project.R")
 # of its Biodiversity Review in adfsimon-bioinfo, replacing the Galiano-derived list - the first step of the project's
 # data preparation, before scripts/prepare_summary.R and scripts/prepare_obs.R. Its sources are named in
 # bioreportr-prep.yaml, and its settings, e.g. the period of Solow's analysis, in project$ultimate of scripts/project.R.
-# Ported from the former scripts/rebuild_howe_ultimate_list.py, whose output it reproduces
+# Ported from the former Python script scripts/rebuild_howe_ultimate_list.py, whose output it reproduces, so that the
+# whole of the project's data is prepared in R
 
 settings <- project$ultimate
 source_file <- function (name) file.path(settings$sourceRoot, config[[name]])
