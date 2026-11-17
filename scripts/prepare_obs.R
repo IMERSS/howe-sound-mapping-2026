@@ -6,11 +6,20 @@ source("scripts/utils.R")
 
 # Reduce columns in obs data for visualisation
 
+source("scripts/project.R")
+
 rawObs <- timedFread("tabular_data/AHSBR_Tracheophyta_ultimate-catalogue_2026-06-16.csv")
+
+# The records of a dataset which is a species list rather than sightings, e.g. the 2020 UNESCO nomination's appendix,
+# all at one placeholder coordinate, are not mapped - see project$ultimate in scripts/project.R
+listOnly <- grepl(project$ultimate$listOnlyDatasets, rawObs$datasetName)
+cat("Removing ", sum(listOnly), " records of a species list rather than sightings\n")
+rawObs <- rawObs[!listOnly, ]
 
 filtered <- rawObs %>% select(-c(day, month, year, phylum, kingdom, class, order, family, linkName, basisOfRecord,
                                  scientificNameAuthorship, taxonRank, establishmentMeans, provincialStatus,
-                                 country, countryCode, stateProvince, occurrenceStatus, datasetName, collectionCode))
+                                 country, countryCode, stateProvince, occurrenceStatus))
+# datasetName and collectionCode are kept - scripts/prepare_summary.R reads the dataset of each record from the labels
 
 emptyCols <- colSums(is.na(filtered)) == nrow(filtered)
 

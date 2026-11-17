@@ -2,15 +2,26 @@
 # scripts/intersectShapes.R and scripts/Protected_map_mapbox.R. This file is the project's own, and is not copied by
 # copyFrameworkOut.sh
 
-<<<<<<< HEAD
-=======
-# The project's data files are named in bioreportr.yaml, which the story page reads too
->>>>>>> origin/main
 # The project's data files: those its story page reads, named in bioreportr.yaml, and those which only prepare them,
 # named in bioreportr-prep.yaml
 config <- c(yaml::read_yaml("bioreportr.yaml")$data, yaml::read_yaml("bioreportr-prep.yaml")$data)
 
 project <- list(
+  # The settings of scripts/prepare_ultimate_list.R, which builds the ultimate checklist and catalogue from the synthesis
+  # of the Átl’ḵa7tsem/Howe Sound Biodiversity Review in adfsimon-bioinfo, whose files are named in bioreportr-prep.yaml
+  ultimate = list(
+    # Where adfsimon-bioinfo is checked out, relative to this project
+    sourceRoot = "../adfsimon-bioinfo",
+    # The period of Solow's (1993) analysis of each taxon's sightings: from its baseline year to its analysis year
+    baselineYear = 1897,
+    analysisYear = 2024,
+    # Names of the catalogue's records which differ from those of the summary, as the summary names them
+    renames = c("Heterocodon rariflorum" = "Heterocodon rariflorus", "Ranunculus aquatilis" = "Ranunculus aquatilis complex"),
+    # The records of a dataset which is a species list rather than sightings - the appendix of the 2020 UNESCO
+    # nomination, entered as 583 pseudo-records dated 2020-07-01 at one placeholder coordinate. They stay in the
+    # catalogue, but count in no analysis of sightings and are not mapped - see also scripts/prepare_obs.R
+    listOnlyDatasets = "UNESCO Nomination"
+  ),
   # The source catalogue, whose records are labelled with the regions they fall in
   obsFile = file.path("tabular_data", config$catalogue),
   # The index of the shapes the records are intersected with - see spatial_data/vectors

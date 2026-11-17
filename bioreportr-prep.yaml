@@ -20,3 +20,16 @@ data:
   # adfsimon-bioinfo's Howe_Sound/2026_synthesis/ranked/Howe_Sound_vascular_plants_reviewed_ranked_curated.csv, read by
   # scripts/prepare_summary.R
   rankings: AHSBR_Tracheophyta_conservation-rankings_2026-04-21.csv
+  # The sources of the ultimate checklist and catalogue above, built by scripts/prepare_ultimate_list.R - each a file of
+  # adfsimon-bioinfo, under its checkout named in scripts/project.R. The summary of the 2026 synthesis of the review:
+  synthesisSummary: Howe_Sound/2026_synthesis/summary/Howe_Sound_Tracheophyta_summary_2026-04-20.csv
+  # The summary of the 2024 review, from which taxa recorded in the catalogue but missing from the 2026 summary are restored
+  reviewSummary: Howe_Sound/review/Plantae_et_Chromista/vascular_plants/outputs/vascular_plant_summary_resynthesized_2024-11-14.csv
+  # The consolidated records of the review, which become the catalogue
+  consolidatedRecords: Howe_Sound/consolidate_records/Plantae_et_Chromista/vascular_plants/synthesized/Howe_Sound_vascular_plant_records_consolidated.csv
+  # The entries of the 2026 summary not yet resolved to a taxon, set aside by scripts/prepare_ultimate_list.R - a file
+  # of tabular_data
+  unresolvedStubs: Howe_Sound_Tracheophyta_summary_2026-04-20_unresolved-stubs.csv
+  # Corrections of the provincial conservation status of taxa whose rank or its year in the synthesis is out of date,
+  # applied by scripts/prepare_ultimate_list.R - taxonName and provincial_conservation_status, as the checklist writes it
+  provincialStatusCorrections: AHSBR_Tracheophyta_provincial-status-corrections_2026-11-14.csv
